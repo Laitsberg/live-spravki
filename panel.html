@@ -429,11 +429,17 @@ function renderTrack() {
   if (c.status === 'error') { f.innerHTML = `<div class="empty">Ошибка генерации: ${esc(c.error || '')}</div>`; return; }
   if (c.known === false || !(c.facts || []).length) {
     f.innerHTML = '<div class="empty">В интернете про этот трек ничего не нашлось — скорее всего, это авторский трек зрителя.</div>';
-    if (t.extra) addFact(f, { title: 'Комментарий к заказу', text: t.extra }, 'custom');
+    addComment(f, t);
     return;
   }
   if (c.artistInfo) addFact(f, { title: m.artist ? 'Кто это: ' + m.artist : 'Об артисте', text: c.artistInfo }, 'fact', 'ОБ АРТИСТЕ');
   c.facts.forEach(x => addFact(f, x, 'fact'));
+  addComment(f, t);
+}
+function addComment(box, t) {
+  const x = String(t.extra || '').trim();
+  if (!x || /^коммент/i.test(x)) return; // пусто или скрипт ещё старый и не достал примечание
+  addFact(box, { title: 'Комментарий от ' + (t.who || 'заказчика'), text: x.length > 220 ? x.slice(0, 217) + '…' : x }, 'custom', 'КОММЕНТАРИЙ К ЗАКАЗУ');
 }
 function addFact(box, x, kind, kicker) {
   const d = document.createElement('div'); d.className = 'item';
