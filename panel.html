@@ -165,6 +165,9 @@
       <label>Комната (topic) — общий «канал» пульта и оверлея</label>
       <div class="row"><input id="topic" style="flex:1"><button class="small" id="btnNewTopic">Новая</button></div>
       <p class="hint">Если сменить комнату, ссылку в OBS нужно обновить.</p>
+      <label>Пульт для второго человека (композитора, модератора)</label>
+      <div class="row"><button class="small" id="btnShare">Скопировать ссылку на пульт с настройками</button></div>
+      <p class="hint">По этой ссылке откроется пульт, подключённый к тому же оверлею и таблице. Внутри токен генерации — давай её только своим.</p>
     </section>
   </div>
 </main>
@@ -185,6 +188,17 @@ const cfg = {
   autoTerms: store.get('autoTerms', true), autoTrack: store.get('autoTrack', true),
   pos: store.get('pos', 'tl'), sound: store.get('sound', false),
 };
+// Настройки можно передать ссылкой: panel.html#topic=…&script=…&token=…
+// (после # — браузер никуда это не отправляет). Так второй человек получает тот же «канал» и таблицу.
+(function importFromHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (!h.has('topic') && !h.has('script')) return;
+  if (h.get('topic')) cfg.topic = h.get('topic');
+  if (h.get('script')) { cfg.scriptUrl = h.get('script'); store.set('scriptUrl', cfg.scriptUrl); }
+  if (h.get('token')) { cfg.token = h.get('token'); store.set('token', cfg.token); }
+  history.replaceState(null, '', location.pathname); // убрать токен из адресной строки
+  setTimeout(() => alert('Настройки пульта получены по ссылке ✓\nКарточки будут уходить в тот же оверлей.'), 300);
+})();
 store.set('topic', cfg.topic);
 const bind = (id, key, type) => {
   const el = $(id);
@@ -214,6 +228,12 @@ function updateLinks() {
 function fitPreview() { const w = $('preview').clientWidth; $('pv').style.transform = `scale(${w / 1920})`; }
 window.addEventListener('resize', fitPreview);
 $('btnNewTopic').onclick = () => { if (!confirm('Создать новую комнату? Ссылку в OBS придётся заменить.')) return; cfg.topic = Bus.newTopic(); store.set('topic', cfg.topic); $('topic').value = cfg.topic; updateLinks(); };
+$('btnShare').onclick = () => {
+  const u = new URL('panel.html', location.href);
+  const h = new URLSearchParams({ topic: cfg.topic }); if (cfg.scriptUrl) h.set('script', cfg.scriptUrl); if (cfg.token) h.set('token', cfg.token);
+  navigator.clipboard.writeText(u.toString() + '#' + h.toString());
+  $('btnShare').textContent = 'Скопировано ✓'; setTimeout(() => $('btnShare').textContent = 'Скопировать ссылку на пульт с настройками', 1500);
+};
 $('btnCopy').onclick = () => { navigator.clipboard.writeText(overlayUrl()); $('btnCopy').textContent = 'Скопировано ✓'; setTimeout(() => $('btnCopy').textContent = 'Скопировать', 1500); };
 
 // ───────── отправка карточек ─────────
