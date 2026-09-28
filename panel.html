@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Живые справки — пульт</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0f1a; --panel: #121829; --panel2: #182038; --line: rgba(255,255,255,.09);
+    --text: #eef2ff; --muted: #97a0bd; --aqua: #6fe3ff; --gold: #ffce5c; --coral: #ff5a6e; --green: #5be3a0; --violet: #b18cff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 500 15px/1.45 Montserrat, system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(11,15,26,.92); backdrop-filter: blur(8px); z-index: 5; flex-wrap: wrap; }
+  h1 { font: 700 18px Unbounded, sans-serif; margin: 0; letter-spacing: .02em; }
+  h1 span { color: var(--aqua); }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555c75; }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.warn { background: var(--gold); }
+  .dot.err { background: var(--coral); }
+  .spacer { flex: 1; }
+  main { display: grid; grid-template-columns: minmax(340px, 1.05fr) minmax(340px, 1.1fr) minmax(330px, .95fr); gap: 16px; padding: 16px 20px 40px; }
+  @media (max-width: 1150px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+  h2 { font: 700 13px Unbounded, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+  h2 .grow { flex: 1; }
+  button { font: 700 14px Montserrat, sans-serif; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; }
+  button:hover { border-color: rgba(255,255,255,.25); }
+  button.primary { background: var(--aqua); color: #07101c; border-color: transparent; }
+  button.danger { background: rgba(255,90,110,.16); border-color: rgba(255,90,110,.5); }
+  button.small { padding: 5px 10px; font-size: 13px; border-radius: 8px; }
+  button:disabled { opacity: .45; cursor: default; }
+  input, textarea, select { width: 100%; font: 500 14px Montserrat, sans-serif; color: var(--text); background: #0d1222; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+  textarea { resize: vertical; min-height: 64px; }
+  label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin: 10px 0 5px; letter-spacing: .04em; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); margin: 0; cursor: pointer; }
+  .toggle input { width: auto; }
+  #transcript { height: 230px; overflow: auto; background: #0d1222; border-radius: 12px; padding: 10px 12px; font-size: 15px; border: 1px solid var(--line); }
+  #transcript p { margin: 0 0 6px; }
+  #transcript .interim { color: var(--muted); font-style: italic; }
+  mark { background: rgba(111,227,255,.18); color: var(--aqua); border-radius: 4px; padding: 0 3px; text-decoration: underline; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; }
+  .item .grow { flex: 1; min-width: 0; }
+  .item b { display: block; }
+  .item small { color: var(--muted); display: block; }
+  .tag { font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 2px 7px; border-radius: 6px; background: rgba(255,255,255,.08); color: var(--muted); white-space: nowrap; }
+  .tag.shown { background: rgba(91,227,160,.15); color: var(--green); }
+  .tag.wait { background: rgba(255,206,92,.15); color: var(--gold); }
+  .tag.skip { background: rgba(255,255,255,.06); }
+  .track { display: flex; gap: 14px; align-items: center; }
+  .track img { width: 84px; height: 84px; border-radius: 12px; object-fit: cover; background: #0d1222; }
+  .track .t { font: 700 18px Unbounded, sans-serif; line-height: 1.25; }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+  .preview { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
+    background: repeating-conic-gradient(#1a2135 0 25%, #151b2d 0 50%) 0 0/24px 24px; }
+  .preview iframe { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform-origin: 0 0; pointer-events: none; }
+  .link { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all; background: #0d1222; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; color: var(--aqua); }
+  details summary { cursor: pointer; color: var(--muted); font-weight: 700; font-size: 13px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .search { margin-bottom: 8px; }
+  #rows { max-height: 260px; overflow: auto; }
+  .rowbtn { text-align: left; width: 100%; display: flex; gap: 8px; align-items: center; font-weight: 600; }
+  .rowbtn .grow { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kbd { font: 700 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Живые <span>справки</span> · пульт</h1>
+  <span class="pill"><span class="dot" id="dMic"></span><span id="sMic">речь выкл.</span></span>
+  <span class="pill"><span class="dot" id="dBus"></span><span id="sBus">оверлей</span></span>
+  <span class="pill"><span class="dot" id="dSheet"></span><span id="sSheet">таблица не подключена</span></span>
+  <span class="spacer"></span>
+  <button id="btnSkip" title="Убрать текущую карточку (Esc)">Пропустить <span class="kbd">Esc</span></button>
+  <button class="danger" id="btnHide" title="Скрыть всё и очистить очередь">Скрыть всё</button>
+</header>
+
+<main>
+  <!-- ───────────── Колонка 1: речь и термины ───────────── -->
+  <div>
+    <section>
+      <h2>Распознавание речи <span class="grow"></span>
+        <button class="primary" id="btnMic">▶ Слушать</button></h2>
+      <div id="transcript"><p class="muted">Нажми «Слушать» и выбери микрофон. Чтобы распознавать звук стрима, выбери виртуальный кабель (см. инструкцию).</p></div>
+      <div class="row" style="margin-top:10px">
+        <label class="toggle"><input type="checkbox" id="autoTerms" checked> показывать термины автоматически</label>
+      </div>
+      <details style="margin-top:10px">
+        <summary>Проверить без микрофона</summary>
+        <div class="row" style="margin-top:8px"><input id="fakeText" placeholder="например: тут интересная хроматика и перегруз"><button id="btnFake">Отправить</button></div>
+      </details>
+    </section>
+
+    <section>
+      <h2>Услышанные термины <span class="grow"></span><span class="muted" style="font-size:12px;letter-spacing:0;text-transform:none" id="termCount">0</span></h2>
+      <div class="list" id="terms"><div class="empty">Пока ничего. Термины из словаря появятся здесь.</div></div>
+    </section>
+  </div>
+
+  <!-- ───────────── Колонка 2: трек и факты ───────────── -->
+  <div>
+    <section>
+      <h2>Сейчас разносим <span class="grow"></span>
+        <button class="small" id="btnRefresh" title="Обновить из таблицы">⟳</button></h2>
+      <div id="trackBox" class="empty">Подключи таблицу в настройках (справа внизу) — тогда здесь будет трек, отмеченный «В процессе».</div>
+      <div class="row" style="margin-top:12px">
+        <button id="btnTrackCard" disabled>Показать карточку трека</button>
+        <button id="btnGen" disabled title="Если фактов ещё нет — сгенерировать прямо сейчас">Сгенерировать факты</button>
+        <label class="toggle"><input type="checkbox" id="autoTrack" checked> карточка трека при смене</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Факты о треке</h2>
+      <div class="list" id="facts"><div class="empty">Нет фактов.</div></div>
+      <p class="hint">Факты генерирует ИИ с веб-поиском — перед показом пробеги глазами.</p>
+    </section>
+
+    <section>
+      <h2>Выбрать трек вручную</h2>
+      <input class="search" id="rowSearch" placeholder="поиск по названию или заказчику">
+      <div class="list" id="rows"><div class="empty">Список появится после подключения таблицы.</div></div>
+    </section>
+  </div>
+
+  <!-- ───────────── Колонка 3: оверлей и настройки ───────────── -->
+  <div>
+    <section>
+      <h2>Что видит зритель</h2>
+      <div class="preview" id="preview"><iframe id="pv"></iframe></div>
+      <label>Ссылка для OBS (Browser Source 1920×1080)</label>
+      <div class="link" id="obsLink"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="small" id="btnCopy">Скопировать</button>
+        <button class="small" id="btnTest">Тестовая карточка</button>
+        <select id="pos" style="width:auto"><option value="tl">слева сверху</option><option value="tr">справа сверху</option><option value="bl">слева снизу</option><option value="br">справа снизу</option></select>
+        <label class="toggle"><input type="checkbox" id="sound"> звук</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Своя карточка</h2>
+      <input id="cTitle" placeholder="Заголовок">
+      <textarea id="cText" placeholder="Текст" style="margin-top:8px"></textarea>
+      <div class="row" style="margin-top:8px"><button id="btnCustom">Показать</button></div>
+    </section>
+
+    <section>
+      <h2>Настройки</h2>
+      <label>Ссылка на скрипт таблицы (Web App URL)</label>
+      <input id="scriptUrl" placeholder="https://script.google.com/macros/s/…/exec">
+      <label>Токен генерации (из свойств скрипта)</label>
+      <input id="token" placeholder="GEN_TOKEN">
+      <div class="row">
+        <div style="flex:1"><label>Пауза между карточками, сек</label><input id="gap" type="number" min="5" value="15"></div>
+        <div style="flex:1"><label>Повтор термина не раньше, мин</label><input id="cool" type="number" min="1" value="15"></div>
+        <div style="flex:1"><label>Карточка на экране, сек</label><input id="dur" type="number" min="4" value="10"></div>
+      </div>
+      <label>Комната (topic) — общий «канал» пульта и оверлея</label>
+      <div class="row"><input id="topic" style="flex:1"><button class="small" id="btnNewTopic">Новая</button></div>
+      <p class="hint">Если сменить комнату, ссылку в OBS нужно обновить.</p>
+    </section>
+  </div>
+</main>
+
+<script src="terms.js"></script>
+<script src="bus.js"></script>
+<script>
+// ───────── настройки ─────────
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('ls_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('ls_' + k, JSON.stringify(v)); } catch (e) {} },
+};
+const cfg = {
+  topic: store.get('topic', '') || Bus.newTopic(),
+  scriptUrl: store.get('scriptUrl', ''), token: store.get('token', ''),
+  gap: store.get('gap', 15), cool: store.get('cool', 15), dur: store.get('dur', 10),
+  autoTerms: store.get('autoTerms', true), autoTrack: store.get('autoTrack', true),
+  pos: store.get('pos', 'tl'), sound: store.get('sound', false),
+};
+store.set('topic', cfg.topic);
+const bind = (id, key, type) => {
+  const el = $(id);
+  if (type === 'check') el.checked = cfg[key]; else el.value = cfg[key];
+  el.addEventListener('change', () => {
+    cfg[key] = type === 'check' ? el.checked : type === 'num' ? Number(el.value) : el.value.trim();
+    store.set(key, cfg[key]);
+    if (['topic', 'pos', 'sound'].includes(key)) updateLinks();
+    if (key === 'scriptUrl') { lastRowKey = null; pollSheet(true); }
+  });
+};
+bind('scriptUrl', 'scriptUrl'); bind('token', 'token'); bind('gap', 'gap', 'num'); bind('cool', 'cool', 'num'); bind('dur', 'dur', 'num');
+bind('autoTerms', 'autoTerms', 'check'); bind('autoTrack', 'autoTrack', 'check'); bind('topic', 'topic'); bind('pos', 'pos'); bind('sound', 'sound', 'check');
+
+function overlayUrl(extra) {
+  const u = new URL('overlay.html', location.href);
+  u.searchParams.set('topic', cfg.topic); u.searchParams.set('pos', cfg.pos);
+  if (cfg.sound) u.searchParams.set('sound', '1');
+  for (const k in (extra || {})) u.searchParams.set(k, extra[k]);
+  return u.toString();
+}
+function updateLinks() {
+  $('obsLink').textContent = overlayUrl();
+  $('pv').src = overlayUrl({ sound: '0' });
+  fitPreview();
+}
+function fitPreview() { const w = $('preview').clientWidth; $('pv').style.transform = `scale(${w / 1920})`; }
+window.addEventListener('resize', fitPreview);
+$('btnNewTopic').onclick = () => { if (!confirm('Создать новую комнату? Ссылку в OBS придётся заменить.')) return; cfg.topic = Bus.newTopic(); store.set('topic', cfg.topic); $('topic').value = cfg.topic; updateLinks(); };
+$('btnCopy').onclick = () => { navigator.clipboard.writeText(overlayUrl()); $('btnCopy').textContent = 'Скопировано ✓'; setTimeout(() => $('btnCopy').textContent = 'Скопировать', 1500); };
+
+// ───────── отправка карточек ─────────
+let lastShownAt = 0;
+function setDot(id, cls, text, sid) { $(id).className = 'dot ' + (cls || ''); if (sid) $(sid).textContent = text; }
+async function send(msg) {
+  const ok = await Bus.publish(cfg.topic, msg);
+  setDot('dBus', ok ? 'on' : 'err', ok ? 'оверлей: отправлено' : 'оверлей: ошибка связи', 'sBus');
+  return ok;
+}
+function showCard(card) {
+  lastShownAt = Date.now();
+  return send({ type: 'show', card: Object.assign({ duration: cfg.dur }, card) });
+}
+const freeSlot = () => { lastShownAt = Date.now() - cfg.gap * 1000 + 1500; };
+$('btnHide').onclick = () => { freeSlot(); send({ type: 'hide' }); };
+$('btnSkip').onclick = () => { freeSlot(); send({ type: 'skip' }); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) $('btnSkip').click(); });
+$('btnTest').onclick = () => showCard({ kind: 'term', kicker: 'СПРАВКА · ТЕСТ', title: 'Всё работает', text: 'Эта карточка пришла с пульта. Если видишь её в OBS — связь есть.' });
+$('btnCustom').onclick = () => { const t = $('cTitle').value.trim(), x = $('cText').value.trim(); if (!t && !x) return; showCard({ kind: 'custom', kicker: 'ПОЯСНЕНИЕ', title: t, text: x }); };
+
+// ───────── поиск терминов в речи ─────────
+const norm = (s) => ' ' + s.toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/gi, ' ').trim() + ' ';
+const TERMS = window.TERMS.map(t => ({ ...t, pats: t.match.map(p => ' ' + norm(p).trim() + (p.endsWith(' ') ? ' ' : '')) }));
+const termState = {}; // id -> {lastShown, lastHeard, status}
+const heard = [];     // [{term, at, status}]
+function findTerms(text) {
+  const n = norm(text); const found = [];
+  for (const t of TERMS) if (t.pats.some(p => n.includes(p))) found.push(t);
+  return found;
+}
+const STEMS = TERMS.flatMap(t => t.pats).filter(p => p.trim().indexOf(' ') < 0)
+  .map(p => ({ s: p.trim(), exact: p.endsWith(' ') && p.length > p.trimEnd().length }));
+function highlight(text) {
+  const html = text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  return html.split(/(\s+)/).map(w => {
+    const n = norm(w).trim(); if (n.length < 3) return w;
+    return STEMS.some(x => x.exact ? n === x.s : n.startsWith(x.s)) ? `<mark>${w}</mark>` : w;
+  }).join('');
+}
+function termCard(t) { return { kind: 'term', kicker: 'СПРАВКА · ' + t.kicker, title: t.title, text: t.text }; }
+function onTermsHeard(list) {
+  const now = Date.now();
+  for (const t of list) {
+    const st = termState[t.id] || (termState[t.id] = { lastShown: 0, lastHeard: 0 });
+    if (now - st.lastHeard < 8000) continue; // одно и то же слово в одной фразе
+    st.lastHeard = now;
+    const entry = { term: t, at: now, status: 'wait' };
+    if (now - st.lastShown < cfg.cool * 60000) entry.status = 'skip';
+    heard.unshift(entry); if (heard.length > 40) heard.pop();
+  }
+  renderTerms();
+}
+// авто-показ: раз в секунду смотрим очередь
+const WAIT_MS = 25000; // сколько термин может ждать своей очереди
+setInterval(() => {
+  if (!cfg.autoTerms) return;
+  const now = Date.now();
+  if (now - lastShownAt < cfg.gap * 1000) return;
+  const e = heard.find(x => x.status === 'wait' && now - x.at < WAIT_MS);
+  if (e) showTerm(e);
+  heard.forEach(x => { if (x.status === 'wait' && now - x.at >= WAIT_MS) x.status = 'late'; });
+  renderTerms();
+}, 1000);
+function showTerm(e) {
+  e.status = 'shown'; (termState[e.term.id] || {}).lastShown = Date.now();
+  showCard(termCard(e.term)); renderTerms();
+}
+function renderTerms() {
+  $('termCount').textContent = heard.length;
+  if (!heard.length) return;
+  const label = { wait: 'ждёт', shown: 'показан', skip: 'недавно был', late: 'не успел' };
+  $('terms').innerHTML = '';
+  heard.slice(0, 20).forEach((e) => {
+    const d = document.createElement('div'); d.className = 'item';
+    d.innerHTML = `<div class="grow"><b>${e.term.kicker}</b><small>${e.term.title}</small></div>
+      <span class="tag ${e.status === 'shown' ? 'shown' : e.status === 'wait' ? 'wait' : 'skip'}">${label[e.status]}</span>`;
+    const b = document.createElement('button'); b.className = 'small'; b.textContent = 'Показать';
+    b.onclick = () => showTerm(e); d.appendChild(b);
+    $('terms').appendChild(d);
+  });
+}
+
+// ───────── Web Speech API ─────────
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false, interimEl = null;
+const seenInterim = new Map(); // resultIndex -> Set(termIds)
+function addLine(text, interim) {
+  const box = $('transcript');
+  if (box.firstElementChild && box.firstElementChild.classList.contains('muted')) box.innerHTML = '';
+  if (interim) {
+    if (!interimEl) { interimEl = document.createElement('p'); interimEl.className = 'interim'; box.appendChild(interimEl); }
+    interimEl.innerHTML = highlight(text);
+  } else {
+    if (interimEl) { interimEl.remove(); interimEl = null; }
+    const p = document.createElement('p'); p.innerHTML = highlight(text); box.appendChild(p);
+    while (box.children.length > 60) box.firstElementChild.remove();
+  }
+  box.scrollTop = box.scrollHeight;
+}
+function processText(text, key) {
+  const found = findTerms(text);
+  const done = seenInterim.get(key) || new Set();
+  const fresh = found.filter(t => !done.has(t.id));
+  fresh.forEach(t => done.add(t.id)); seenInterim.set(key, done);
+  if (fresh.length) onTermsHeard(fresh);
+}
+function startRec() {
+  if (!SR) { alert('Этот браузер не умеет распознавать речь. Открой пульт в Google Chrome.'); return; }
+  rec = new SR(); rec.lang = 'ru-RU'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+  let session = Date.now();
+  rec.onstart = () => setDot('dMic', 'on', 'речь: слушаю', 'sMic');
+  rec.onresult = (ev) => {
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i], text = r[0].transcript.trim(); if (!text) continue;
+      processText(text, session + ':' + i);
+      addLine(text, !r.isFinal);
+    }
+  };
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { listening = false; setDot('dMic', 'err', 'нет доступа к микрофону', 'sMic'); $('btnMic').textContent = '▶ Слушать'; }
+    else setDot('dMic', 'warn', 'речь: ' + e.error, 'sMic');
+  };
+  rec.onend = () => { if (listening) { session = Date.now(); try { rec.start(); } catch (e) { setTimeout(() => listening && rec.start(), 500); } } else setDot('dMic', '', 'речь выкл.', 'sMic'); };
+  listening = true; rec.start();
+  $('btnMic').textContent = '■ Стоп';
+}
+$('btnMic').onclick = () => {
+  if (listening) { listening = false; rec && rec.stop(); $('btnMic').textContent = '▶ Слушать'; }
+  else startRec();
+};
+$('btnFake').onclick = () => { const t = $('fakeText').value.trim(); if (!t) return; processText(t, 'fake' + Date.now()); addLine(t, false); $('fakeText').value = ''; };
+$('fakeText').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnFake').click(); });
+
+// ───────── таблица: текущий трек и факты ─────────
+let current = null, manualRow = null, lastRowKey = null, allRows = [];
+async function api(params) {
+  if (!cfg.scriptUrl) throw new Error('no url');
+  const u = new URL(cfg.scriptUrl); for (const k in params) u.searchParams.set(k, params[k]);
+  const r = await fetch(u.toString(), { redirect: 'follow' });
+  const j = await r.json(); if (!j.ok) throw new Error(j.error || 'ошибка скрипта'); return j;
+}
+async function pollSheet(force) {
+  if (!cfg.scriptUrl) { setDot('dSheet', '', 'таблица не подключена', 'sSheet'); return; }
+  try {
+    const j = await api(manualRow ? { action: 'row', row: manualRow } : { action: 'state' });
+    setDot('dSheet', 'on', 'таблица: ок', 'sSheet');
+    const tr = manualRow ? j.track : j.current;
+    const key = tr ? tr.row + '|' + tr.link : 'none';
+    const changed = key !== lastRowKey;
+    current = tr; lastRowKey = key;
+    renderTrack();
+    if (changed && tr && cfg.autoTrack && !force) showCard(trackCard(tr));
+  } catch (e) { setDot('dSheet', 'err', 'таблица: ' + e.message, 'sSheet'); }
+}
+setInterval(() => pollSheet(false), 5000);
+$('btnRefresh').onclick = () => { pollSheet(true); loadRows(); };
+
+function trackCard(t) {
+  const c = t.card || {}, m = c.meta || {};
+  const title = m.title || t.title || 'Трек';
+  const who = t.who || '';
+  const bits = [m.artist, m.album, m.year, t.genre].filter(Boolean);
+  return { kind: 'track', kicker: 'СЕЙЧАС РАЗНОСИМ', title: (m.artist ? m.artist + ' — ' : '') + title,
+    text: bits.slice(m.artist ? 1 : 0).join(' · ') || (t.extra || ''), who, image: m.cover || '', priority: true };
+}
+function renderTrack() {
+  const box = $('trackBox'); const t = current;
+  $('btnTrackCard').disabled = !t; $('btnGen').disabled = !t;
+  if (!t) { box.className = 'empty'; box.textContent = 'В таблице нет строки, отмеченной «В процессе».'; $('facts').innerHTML = '<div class="empty">Нет фактов.</div>'; return; }
+  const c = t.card || {}, m = c.meta || {};
+  box.className = '';
+  box.innerHTML = `<div class="track">${m.cover ? `<img src="${m.cover}" referrerpolicy="no-referrer">` : ''}
+    <div><div class="t">${esc(m.title || t.title || '—')}</div>
+    <div class="muted">${esc([m.artist, m.album, m.year].filter(Boolean).join(' · '))}</div>
+    <div class="muted">строка ${t.row} · ${esc(t.who || '')} · ${esc(t.type || '')}${manualRow ? ' · <b style="color:var(--gold)">выбран вручную</b>' : ''}</div></div></div>
+    ${manualRow ? '<button class="small" id="btnAuto" style="margin-top:8px">Вернуться к «В процессе»</button>' : ''}`;
+  if (manualRow) $('btnAuto').onclick = () => { manualRow = null; lastRowKey = null; pollSheet(true); };
+  const f = $('facts'); f.innerHTML = '';
+  if (c.status === 'pending' || !c.status) { f.innerHTML = '<div class="empty">Факты ещё готовятся… (можно нажать «Сгенерировать факты»)</div>'; return; }
+  if (c.status === 'error') { f.innerHTML = `<div class="empty">Ошибка генерации: ${esc(c.error || '')}</div>`; return; }
+  if (c.known === false || !(c.facts || []).length) {
+    f.innerHTML = '<div class="empty">В интернете про этот трек ничего не нашлось — скорее всего, это авторский трек зрителя.</div>';
+    if (t.extra) addFact(f, { title: 'Комментарий к заказу', text: t.extra }, 'custom');
+    return;
+  }
+  if (c.artistInfo) addFact(f, { title: m.artist ? 'Кто это: ' + m.artist : 'Об артисте', text: c.artistInfo }, 'fact', 'ОБ АРТИСТЕ');
+  c.facts.forEach(x => addFact(f, x, 'fact'));
+}
+function addFact(box, x, kind, kicker) {
+  const d = document.createElement('div'); d.className = 'item';
+  const host = x.source ? (() => { try { return new URL(x.source).hostname.replace(/^www\./, ''); } catch (e) { return ''; } })() : '';
+  d.innerHTML = `<div class="grow"><b>${esc(x.title || '')}</b><small>${esc(x.text || '')}</small>${host ? `<small><a href="${esc(x.source)}" target="_blank" style="color:var(--aqua)">${esc(host)}</a></small>` : ''}</div>`;
+  const b = document.createElement('button'); b.className = 'small'; b.textContent = 'Показать';
+  b.onclick = () => { showCard({ kind, kicker: kicker || 'ФАКТ О ТРЕКЕ', title: x.title, text: x.text, source: host }); b.textContent = 'Показано ✓'; };
+  d.appendChild(b); box.appendChild(d);
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+$('btnTrackCard').onclick = () => current && showCard(trackCard(current));
+$('btnGen').onclick = async () => {
+  if (!current) return;
+  $('btnGen').disabled = true; $('btnGen').textContent = 'Генерирую… (~20 сек)';
+  try { const j = await api({ action: 'generate', row: current.row, token: cfg.token }); current.card = j.card; renderTrack(); }
+  catch (e) { alert('Не получилось: ' + e.message); }
+  $('btnGen').disabled = false; $('btnGen').textContent = 'Сгенерировать факты';
+};
+
+async function loadRows() {
+  if (!cfg.scriptUrl) return;
+  try { const j = await api({ action: 'list' }); allRows = j.rows || []; renderRows(); } catch (e) {}
+}
+function renderRows() {
+  const qv = $('rowSearch').value.toLowerCase(); const box = $('rows'); box.innerHTML = '';
+  const list = allRows.filter(r => !qv || (r.title + ' ' + r.who).toLowerCase().includes(qv)).slice(0, 80);
+  if (!list.length) { box.innerHTML = '<div class="empty">Ничего не найдено.</div>'; return; }
+  list.forEach(r => {
+    const b = document.createElement('button'); b.className = 'rowbtn';
+    const tag = r.status === 'current' ? '<span class="tag shown">в процессе</span>' : r.status === 'next' ? '<span class="tag wait">след.</span>' : '';
+    b.innerHTML = `<span class="muted">${r.row}</span><span class="grow">${esc(r.title)} <span class="muted">· ${esc(r.who)}</span></span>${tag}<span class="tag">${r.hasCard ? 'факты ✓' : '—'}</span>`;
+    b.onclick = () => { manualRow = r.row; lastRowKey = null; pollSheet(false); };
+    box.appendChild(b);
+  });
+}
+$('rowSearch').addEventListener('input', renderRows);
+setInterval(loadRows, 60000);
+
+// старт
+updateLinks(); pollSheet(true); loadRows();
+</script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Живые справки — оверлей</title>
+<meta name="viewport" content="width=1920">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --aqua: #6fe3ff; --gold: #ffce5c; --coral: #ff5a6e; --violet: #b18cff;
+    --card: rgba(10, 16, 30, 0.92); --text: #fff; --muted: rgba(255,255,255,.74);
+    --scale: 1;
+  }
+  html, body { margin: 0; background: transparent; overflow: hidden; width: 1920px; height: 1080px; }
+  body { font-family: Montserrat, system-ui, sans-serif; color: var(--text); }
+  #stage { position: absolute; inset: 0; }
+  .slot { position: absolute; transform-origin: top left; transform: scale(var(--scale)); }
+  .slot.tl { left: 48px; top: 48px; }
+  .slot.tr { right: 48px; top: 48px; transform-origin: top right; }
+  .slot.bl { left: 48px; bottom: 48px; transform-origin: bottom left; }
+  .slot.br { right: 48px; bottom: 48px; transform-origin: bottom right; }
+
+  .card {
+    position: relative; width: 640px; box-sizing: border-box;
+    padding: 26px 30px 28px 56px; border-radius: 26px;
+    background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 50%), var(--card);
+    border: 1.5px solid rgba(255,255,255,.14);
+    box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 2px 0 rgba(255,255,255,.04) inset;
+    display: flex; gap: 22px; align-items: flex-start;
+    opacity: 0; transform: translateX(-70px);
+    transition: opacity .35s ease, transform .5s cubic-bezier(.2,.9,.25,1.15);
+  }
+  .slot.tr .card, .slot.br .card { transform: translateX(70px); }
+  .slot .card.in { opacity: 1; transform: none; }
+  .slot .card.out { opacity: 0; transform: translateY(-14px); transition: opacity .4s ease, transform .4s ease; }
+  .card::before {
+    content: ''; position: absolute; left: 24px; top: 24px; bottom: 24px; width: 8px;
+    border-radius: 8px; background: var(--accent);
+  }
+  .body { flex: 1; min-width: 0; }
+  .kicker { display: flex; align-items: center; gap: 12px; font-family: Unbounded, sans-serif;
+    font-weight: 600; font-size: 15px; letter-spacing: .2em; color: var(--accent); text-transform: uppercase; }
+  .badge { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #0a101e;
+    display: grid; place-items: center; font-weight: 800; font-size: 17px; letter-spacing: 0; flex: none; }
+  .title { font-family: Unbounded, sans-serif; font-weight: 700; font-size: 30px; line-height: 1.25; margin-top: 14px; }
+  .text { font-weight: 600; font-size: 22px; line-height: 1.42; color: var(--muted); margin-top: 10px; }
+  .src { font-weight: 600; font-size: 15px; color: rgba(255,255,255,.42); margin-top: 12px; }
+  .cover { width: 150px; height: 150px; border-radius: 18px; object-fit: cover; flex: none;
+    box-shadow: 0 10px 26px rgba(0,0,0,.5); }
+  .who { display: inline-block; margin-top: 14px; padding: 7px 16px; border-radius: 999px;
+    border: 2px solid var(--coral); background: rgba(255,90,110,.22); font-weight: 700; font-size: 17px;
+    letter-spacing: .06em; text-transform: uppercase; }
+  .timer { position: absolute; left: 56px; right: 30px; bottom: 12px; height: 3px; border-radius: 3px;
+    background: var(--accent); opacity: .55; transform-origin: left; }
+  #status { position: absolute; left: 12px; bottom: 10px; font: 600 14px Montserrat, sans-serif;
+    color: rgba(255,255,255,.6); background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="slot" class="slot tl"></div></div>
+<div id="status" hidden></div>
+<script src="bus.js"></script>
+<script>
+  const q = new URLSearchParams(location.search);
+  const topic = q.get('topic') || '';
+  const slot = document.getElementById('slot');
+  slot.className = 'slot ' + (q.get('pos') || 'tl');
+  if (q.get('scale')) document.documentElement.style.setProperty('--scale', q.get('scale'));
+  if (q.get('x')) slot.style.left = q.get('x') + 'px';
+  if (q.get('y')) slot.style.top = q.get('y') + 'px';
+  const status = document.getElementById('status');
+  const showStatus = q.get('debug') === '1' || !topic;
+  const setStatus = (s) => { if (!showStatus) return; status.hidden = false; status.textContent = s; };
+  if (!topic) setStatus('Нет topic в ссылке — откройте ссылку из пульта');
+
+  const ACCENT = { term: 'var(--aqua)', fact: 'var(--gold)', track: 'var(--coral)', custom: 'var(--violet)' };
+  const BADGE = { term: 'i', fact: '★', track: '♪', custom: '!' };
+  const queue = []; let current = null, timer = null;
+
+  // --- звук (по желанию: &sound=1) — синтезированный «вжух» ---
+  let actx = null;
+  function whoosh() {
+    if (q.get('sound') !== '1') return;
+    try {
+      actx = actx || new AudioContext();
+      const len = actx.sampleRate * 0.6, buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * t) ** 2 * 0.25; }
+      const src = actx.createBufferSource(); src.buffer = buf;
+      const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8;
+      f.frequency.setValueAtTime(600, actx.currentTime); f.frequency.exponentialRampToValueAtTime(4000, actx.currentTime + 0.5);
+      src.connect(f).connect(actx.destination); src.start();
+    } catch (e) {}
+  }
+
+  const escA = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const esc = (s) => escA(String(s ?? '').replace(/(\S)-(\S)/g, '$1\u2011$2'));
+  function build(c) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.style.setProperty('--accent', c.accent || ACCENT[c.kind] || ACCENT.term);
+    el.innerHTML = `
+      <div class="body">
+        <div class="kicker"><span class="badge">${esc(c.badge || BADGE[c.kind] || 'i')}</span>${esc(c.kicker || '')}</div>
+        ${c.title ? `<div class="title">${esc(c.title)}</div>` : ''}
+        ${c.text ? `<div class="text">${esc(c.text)}</div>` : ''}
+        ${c.who ? `<div class="who">заказ от ${esc(c.who)}</div>` : ''}
+        ${c.source ? `<div class="src">источник: ${esc(c.source)}</div>` : ''}
+      </div>
+      ${c.image ? `<img class="cover" src="${escA(c.image)}" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+      <div class="timer"></div>`;
+    if (c.image) el.style.width = '720px';
+    return el;
+  }
+  function next() {
+    if (current || !queue.length) return;
+    const c = queue.shift();
+    const el = build(c); slot.appendChild(el); current = el;
+    const dur = Math.max(3, Math.min(30, c.duration || 10)) * 1000;
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+    whoosh();
+    const bar = el.querySelector('.timer');
+    bar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: dur, easing: 'linear', fill: 'forwards' });
+    timer = setTimeout(() => hideCurrent(), dur);
+  }
+  function hideCurrent() {
+    clearTimeout(timer);
+    const el = current; if (!el) return;
+    el.classList.remove('in'); el.classList.add('out');
+    setTimeout(() => { el.remove(); if (current === el) current = null; setTimeout(next, 500); }, 420);
+  }
+  Bus.subscribe(topic, (m) => {
+    if (m.type === 'show' && m.card) { if (m.card.priority) queue.unshift(m.card); else queue.push(m.card); if (queue.length > 5) queue.splice(5); next(); }
+    else if (m.type === 'hide') { queue.length = 0; hideCurrent(); }
+    else if (m.type === 'skip') { hideCurrent(); }
+  }, (s) => setStatus(s === 'online' ? 'Связь с пультом: есть' : 'Связь с пультом: переподключение…'));
+</script>
+</body>
+</html>
