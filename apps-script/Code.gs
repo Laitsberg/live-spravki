@@ -1,56 +1,50 @@
 /**
- * Живые справки — скрипт для таблицы «список на РАЗНОС».
+ * Живые справки — отдельный скрипт (живёт в ТВОЁМ Google-аккаунте, а не в таблице композитора).
  *
- * Что делает:
- *  1. Раз в минуту находит новые треки на вкладке «На разнос» и готовит для них карточки:
- *     метаданные со страницы по ссылке + факты через OpenRouter (модель с веб-поиском).
- *     Карточки хранятся на вкладке «Справки (авто)» — её можно смотреть и править руками.
- *  2. Отдаёт пульту текущий трек («В процессе») и его карточку через Web App.
+ *  • Читает таблицу «список на РАЗНОС» (нужен только доступ на просмотр) — саму таблицу НЕ меняет.
+ *  • Раз в минуту находит новые треки на вкладке «На разнос» и готовит карточки:
+ *    метаданные по ссылке + факты через OpenRouter (модель с веб-поиском).
+ *    Карточки лежат в твоей отдельной таблице «Живые справки — карточки» (её можно править руками).
+ *  • Отдаёт пульту текущий трек («В процессе») и его карточку через Web App.
  *
- * Ключ OpenRouter хранится в свойствах скрипта (OPENROUTER_KEY), в коде его НЕТ.
+ * Ключ OpenRouter — в «Настройки проекта → Свойства скрипта» (OPENROUTER_KEY). В коде его нет,
+ * и так как проект твой, никто кроме тебя его не видит.
  */
 
 const CFG = {
-  SHEET: 'На разнос',            // вкладка с очередью
-  CARDS_SHEET: 'Справки (авто)', // сюда пишутся готовые карточки
-  FIRST_ROW: 9,                  // первая строка с треками
-  COL: { link: 1, who: 2, type: 3, price: 4, rating: 5, from: 6, genre: 8, extra: 10 },
+  SOURCE_ID: '1yEUr29llt9L1zWavC4lxkyhd6UeIwrQuGsPon9fXt4A', // «список на РАЗНОС»
+  SHEET: 'На разнос',
+  FIRST_ROW: 3,                  // с какой строки искать треки (служебные строки отсеиваются сами)
+  COL: { link: 1, who: 2, type: 3, price: 4, rating: 5, from: 6, tags: 7, genre: 8, feat: 9, extra: 10 },
   STATUS_COLS: [1, 2, 3, 4, 5],  // в каких колонках искать цвет отметки
-  CURRENT_LABEL: 'В процессе',   // текст ячейки-легенды с цветом «в процессе»
-  NEXT_LABEL: 'След трек',       // текст ячейки-легенды с цветом «следующий»
+  CURRENT_LABEL: 'В процессе',   // ячейка-легенда с цветом «в процессе»
+  NEXT_LABEL: 'След трек',       // ячейка-легенда с цветом «следующий»
   FALLBACK_CURRENT: '#ffff00',
   FALLBACK_NEXT: '#00ff00',
-  SKIP_TEXT: ['ЧТО-ТО', 'ЧТО ТО', ''],
-  MODEL: 'google/gemini-2.5-flash:online', // можно сменить в свойствах скрипта: MODEL
+  PLACEHOLDERS: ['ЧТО-ТО', 'ЧТО ТО', 'ЧТОТО'],
+  MODEL: 'google/gemini-2.5-flash:online', // можно переопределить свойством скрипта MODEL
   PER_RUN: 3,                    // сколько треков обрабатывать за один запуск триггера
 };
 
-// ───────────────────────── меню и установка ─────────────────────────
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Живые справки')
-    .addItem('1. Первоначальная настройка', 'setup')
-    .addItem('Сгенерировать для выделенной строки', 'generateSelected')
-    .addItem('Обработать новые треки сейчас', 'processPending')
-    .addToUi();
-}
-
+// ───────────────────────── установка ─────────────────────────
+/** Запусти ОДИН раз из редактора (▶ setup). Перед этим добавь свойство OPENROUTER_KEY. */
 function setup() {
-  const ui = SpreadsheetApp.getUi();
   const props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('OPENROUTER_KEY')) {
-    const r = ui.prompt('Ключ OpenRouter', 'Вставь API-ключ OpenRouter (sk-or-...). Он сохранится в свойствах скрипта и не будет виден в коде.', ui.ButtonSet.OK_CANCEL);
-    if (r.getSelectedButton() !== ui.Button.OK) return;
-    props.setProperty('OPENROUTER_KEY', r.getResponseText().trim());
-  }
+  if (!props.getProperty('OPENROUTER_KEY')) throw new Error('Сначала добавь свойство скрипта OPENROUTER_KEY (Настройки проекта → Свойства скрипта)');
   if (!props.getProperty('GEN_TOKEN')) props.setProperty('GEN_TOKEN', Utilities.getUuid().slice(0, 8));
-  cardsSheet_();
+  const cards = cardsBook_();
   ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'processPending').forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('processPending').timeBased().everyMinutes(1).create();
-  ui.alert('Готово',
-    'Триггер включён: раз в минуту новые треки получают карточки.\n\n' +
-    'Токен для пульта (поле «Токен генерации»): ' + props.getProperty('GEN_TOKEN') + '\n\n' +
-    'Дальше: Развернуть → Новое развёртывание → Веб-приложение (доступ: «Все») и вставь ссылку в пульт.',
-    ui.ButtonSet.OK);
+  const rows = listRows_();
+  Logger.log('Готово. Треков в очереди: ' + rows.length +
+    '. Сейчас «В процессе»: ' + ((rows.filter(r => r.status === 'current')[0] || {}).title || 'нет') +
+    '\nТаблица карточек: ' + cards.getUrl() +
+    '\nТОКЕН ДЛЯ ПУЛЬТА: ' + props.getProperty('GEN_TOKEN'));
+}
+
+/** Проверка без триггера: покажет, как скрипт видит очередь. */
+function checkQueue() {
+  listRows_().slice(0, 40).forEach(r => Logger.log([r.row, r.status || '-', r.title, r.link || '(нет ссылки)', r.who, r.type].join(' | ')));
 }
 
 // ───────────────────────── Web App (для пульта) ─────────────────────────
@@ -58,18 +52,21 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   try {
     let out;
-    if (p.action === 'list') out = { rows: listRows_().map(r => ({ row: r.row, title: r.title, who: r.who, status: r.status, hasCard: !!getCard_(r.key) })) };
-    else if (p.action === 'row') out = { track: withCard_(findRow_(Number(p.row))) };
-    else if (p.action === 'generate') {
+    if (p.action === 'list') {
+      const idx = cardIndex_();
+      out = { rows: listRows_().map(r => ({ row: r.row, title: r.title, who: r.who, status: r.status, hasCard: !!(idx[r.key] && idx[r.key].json) })) };
+    } else if (p.action === 'row') {
+      out = { track: withCard_(findRow_(Number(p.row))) };
+    } else if (p.action === 'generate') {
       if (!p.token || p.token !== PropertiesService.getScriptProperties().getProperty('GEN_TOKEN')) throw new Error('неверный токен');
       const r = findRow_(Number(p.row)); if (!r) throw new Error('строка не найдена');
-      out = { card: generateFor_(r, true) };
+      out = { card: generateFor_(r) };
     } else {
       const cache = CacheService.getScriptCache(); const hit = cache.get('state');
       if (hit) return json_(JSON.parse(hit));
       const rows = listRows_();
-      out = { current: withCard_(rows.find(r => r.status === 'current')), next: withCard_(rows.find(r => r.status === 'next')), ok: true };
-      cache.put('state', JSON.stringify(out), 3);
+      out = { current: withCard_(rows.filter(r => r.status === 'current')[0]), next: withCard_(rows.filter(r => r.status === 'next')[0]), ok: true };
+      cache.put('state', JSON.stringify(out), 4);
     }
     out.ok = true;
     return json_(out);
@@ -81,32 +78,40 @@ function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).se
 function withCard_(r) { if (!r) return null; return Object.assign({}, r, { card: getCard_(r.key) }); }
 
 // ───────────────────────── чтение очереди ─────────────────────────
+function sourceSheet_() {
+  const sh = SpreadsheetApp.openById(CFG.SOURCE_ID).getSheetByName(CFG.SHEET);
+  if (!sh) throw new Error('нет вкладки «' + CFG.SHEET + '»');
+  return sh;
+}
 function legendColor_(sh, label, fallback) {
-  const cell = sh.createTextFinder(label).matchEntireCell(false).findNext();
+  const cell = sh.createTextFinder(label).matchEntireCell(true).findNext() || sh.createTextFinder(label).findNext();
   return (cell ? cell.getBackground() : fallback).toLowerCase();
 }
 function listRows_() {
-  const sh = SpreadsheetApp.getActive().getSheetByName(CFG.SHEET);
-  if (!sh) throw new Error('нет вкладки «' + CFG.SHEET + '»');
+  const sh = sourceSheet_();
   const last = sh.getLastRow(); if (last < CFG.FIRST_ROW) return [];
   const n = last - CFG.FIRST_ROW + 1;
   const width = Math.max(CFG.COL.extra, Math.max.apply(null, CFG.STATUS_COLS));
   const rng = sh.getRange(CFG.FIRST_ROW, 1, n, width);
   const vals = rng.getDisplayValues(), bgs = rng.getBackgrounds();
   const rich = sh.getRange(CFG.FIRST_ROW, CFG.COL.link, n, 1).getRichTextValues();
+  const chips = chipLinks_(CFG.FIRST_ROW, last);
   const cCur = legendColor_(sh, CFG.CURRENT_LABEL, CFG.FALLBACK_CURRENT);
   const cNext = legendColor_(sh, CFG.NEXT_LABEL, CFG.FALLBACK_NEXT);
   const rows = [];
   for (let i = 0; i < n; i++) {
-    const v = vals[i], text = String(v[CFG.COL.link - 1] || '').trim();
-    if (CFG.SKIP_TEXT.indexOf(text.toUpperCase()) >= 0) continue;
-    const link = linkOf_(rich[i][0], text);
+    const v = vals[i];
+    const text = String(v[CFG.COL.link - 1] || '').trim(), who = String(v[CFG.COL.who - 1] || '').trim(), type = String(v[CFG.COL.type - 1] || '').trim();
+    // строка трека: есть «что», есть «тип», и это не объединённая служебная строка (там текст повторяется во всех колонках)
+    if (!text || !type || type === text || type.length > 40 || type === 'Тип') continue;
+    if (CFG.PLACEHOLDERS.indexOf(text.toUpperCase()) >= 0) continue;
+    const row = CFG.FIRST_ROW + i;
+    const link = linkOf_(rich[i][0], text) || chips[row] || '';
     const colors = CFG.STATUS_COLS.map(c => String(bgs[i][c - 1]).toLowerCase());
     const status = colors.indexOf(cCur) >= 0 ? 'current' : colors.indexOf(cNext) >= 0 ? 'next' : '';
     rows.push({
-      row: CFG.FIRST_ROW + i, title: text, link: link, key: link || text,
-      who: v[CFG.COL.who - 1], type: v[CFG.COL.type - 1], genre: v[CFG.COL.genre - 1], extra: v[CFG.COL.extra - 1],
-      status: status,
+      row: row, title: text, link: link, key: link || text, who: who, type: type,
+      genre: v[CFG.COL.genre - 1], extra: v[CFG.COL.extra - 1], status: status,
     });
   }
   return rows;
@@ -119,18 +124,42 @@ function linkOf_(rt, text) {
   }
   const m = String(text).match(/https?:\/\/\S+/); return m ? m[0] : '';
 }
-
-// ───────────────────────── хранилище карточек ─────────────────────────
-function cardsSheet_() {
-  const ss = SpreadsheetApp.getActive();
-  let sh = ss.getSheetByName(CFG.CARDS_SHEET);
-  if (!sh) {
-    sh = ss.insertSheet(CFG.CARDS_SHEET);
-    sh.appendRow(['ключ (ссылка)', 'строка', 'статус', 'карточка (JSON)', 'обновлено']);
-    sh.setFrozenRows(1); sh.setColumnWidth(1, 320); sh.setColumnWidth(4, 600);
-  }
-  return sh;
+// Ссылки из «умных чипов» (YouTube-плашки с иконкой). Нужен сервис «Google Sheets API» (+ Сервисы).
+// Если сервис не подключён — просто пропускаем, трек найдётся по названию.
+function chipLinks_(first, last) {
+  const out = {};
+  try {
+    if (typeof Sheets === 'undefined') return out;
+    const res = Sheets.Spreadsheets.get(CFG.SOURCE_ID, {
+      ranges: ["'" + CFG.SHEET + "'!A" + first + ':A' + last],
+      fields: 'sheets.data.rowData.values(hyperlink,chipRuns)',
+    });
+    const rd = (((res.sheets || [])[0] || {}).data || [])[0].rowData || [];
+    rd.forEach((r, i) => {
+      const c = (r.values || [])[0] || {};
+      let u = c.hyperlink || '';
+      (c.chipRuns || []).forEach(run => { const rl = run.chip && run.chip.richLinkProperties; if (!u && rl && rl.uri) u = rl.uri; });
+      if (u) out[first + i] = u;
+    });
+  } catch (e) { /* сервис не подключён или нет прав — не страшно */ }
+  return out;
 }
+
+// ───────────────────────── хранилище карточек (твоя таблица) ─────────────────────────
+function cardsBook_() {
+  const props = PropertiesService.getScriptProperties();
+  let id = props.getProperty('CARDS_ID'), ss = null;
+  if (id) { try { ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; } }
+  if (!ss) {
+    ss = SpreadsheetApp.create('Живые справки — карточки');
+    const sh = ss.getSheets()[0]; sh.setName('Карточки');
+    sh.appendRow(['ключ (ссылка или название)', 'строка', 'статус', 'карточка (JSON)', 'обновлено']);
+    sh.setFrozenRows(1); sh.setColumnWidth(1, 320); sh.setColumnWidth(4, 700);
+    props.setProperty('CARDS_ID', ss.getId());
+  }
+  return ss;
+}
+function cardsSheet_() { return cardsBook_().getSheets()[0]; }
 function cardIndex_() {
   const sh = cardsSheet_(); const last = sh.getLastRow();
   const map = {}; if (last < 2) return map;
@@ -138,7 +167,8 @@ function cardIndex_() {
   return map;
 }
 function getCard_(key) {
-  const c = cardIndex_()[key]; if (!c || !c.json) return c ? { status: c.status } : null;
+  const c = cardIndex_()[key]; if (!c) return null;
+  if (!c.json) return { status: c.status };
   try { const o = JSON.parse(c.json); o.status = c.status; return o; } catch (e) { return { status: 'error', error: 'битый JSON' }; }
 }
 function saveCard_(key, row, status, obj) {
@@ -153,25 +183,21 @@ function processPending() {
   try {
     const idx = cardIndex_(); let done = 0;
     const rows = listRows_();
-    // сначала — текущий и следующий, потом остальные сверху вниз
-    rows.sort((a, b) => (b.status ? 1 : 0) - (a.status ? 1 : 0));
-    for (const r of rows) {
-      if (done >= CFG.PER_RUN) break;
-      const c = idx[r.key];
+    rows.sort((a, b) => (b.status ? 1 : 0) - (a.status ? 1 : 0)); // сначала текущий и следующий
+    for (let i = 0; i < rows.length && done < CFG.PER_RUN; i++) {
+      const r = rows[i], c = idx[r.key];
       if (c && (c.status === 'ready' || c.status === 'unknown')) continue;
       if (c && c.status === 'error' && !r.status) continue; // ошибки не повторяем бесконечно
-      generateFor_(r, false); done++;
+      generateFor_(r); done++;
     }
   } finally { lock.releaseLock(); }
 }
-function generateSelected() {
-  const sh = SpreadsheetApp.getActiveSheet(); const row = sh.getActiveRange().getRow();
-  const r = findRow_(row); if (!r) { SpreadsheetApp.getUi().alert('Выдели строку с треком на вкладке «' + CFG.SHEET + '»'); return; }
-  const card = generateFor_(r, true);
-  SpreadsheetApp.getUi().alert(card.status === 'ready' ? 'Готово: ' + (card.facts || []).length + ' факт(а)' : 'Статус: ' + card.status + (card.error ? '\n' + card.error : ''));
-}
 
-function generateFor_(r, force) {
+/** Ручная проверка из редактора: поменяй номер строки и запусти. */
+function testRow() { Logger.log(JSON.stringify(generateFor_(findRow_(10)), null, 2)); }
+
+function generateFor_(r) {
+  if (!r) throw new Error('строка не найдена');
   saveCard_(r.key, r.row, 'pending', null);
   let card;
   try {
@@ -195,7 +221,7 @@ function generateFor_(r, force) {
   return card;
 }
 
-// Метаданные со страницы: og-теги (Spotify, YouTube, Яндекс Музыка, SoundCloud…)
+// Метаданные со страницы: YouTube через oEmbed, остальное — og-теги (Spotify, Яндекс Музыка, SoundCloud…)
 function pageMeta_(url) {
   const meta = { title: '', artist: '', image: '', description: '' };
   if (!url || !/^https?:/.test(url)) return meta;
@@ -208,9 +234,12 @@ function pageMeta_(url) {
     const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ru,en' } });
     if (res.getResponseCode() >= 400) return meta;
     const html = res.getContentText().slice(0, 300000);
-    const og = (p) => { const m = html.match(new RegExp('<meta[^>]+property=["\']og:' + p + '["\'][^>]+content=["\']([^"\']*)', 'i')) || html.match(new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]+property=["\']og:' + p, 'i')); return m ? decode_(m[1]) : ''; };
+    const og = (p) => {
+      const m = html.match(new RegExp('<meta[^>]+property=["\']og:' + p + '["\'][^>]+content=["\']([^"\']*)', 'i')) ||
+                html.match(new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]+property=["\']og:' + p, 'i'));
+      return m ? decode_(m[1]) : '';
+    };
     meta.title = og('title'); meta.image = og('image'); meta.description = og('description');
-    // Spotify: «Meaningful Stone · A Call from My Dream · Song · 2020»
     if (/spotify\.com/.test(url) && meta.description) meta.artist = meta.description.split('·')[0].trim();
   } catch (e) {}
   return meta;
@@ -223,9 +252,9 @@ function askAI_(r, meta) {
   const model = props.getProperty('MODEL') || CFG.MODEL;
   const info = [
     'Ссылка: ' + (r.link || '—'),
-    'Текст в таблице: ' + r.title,
+    'Как записано в таблице: ' + r.title,
     meta.title ? 'Название со страницы: ' + meta.title : '',
-    meta.artist ? 'Исполнитель со страницы: ' + meta.artist : '',
+    meta.artist ? 'Исполнитель/канал со страницы: ' + meta.artist : '',
     meta.description ? 'Описание страницы: ' + meta.description : '',
     r.genre ? 'Жанр (по таблице): ' + r.genre : '',
   ].filter(Boolean).join('\n');
@@ -238,13 +267,13 @@ function askAI_(r, meta) {
     'Правила:\n' +
     '- Пиши по-русски, живо и просто.\n' +
     '- Только факты, подтверждённые найденными источниками; у каждого факта — URL источника из результатов поиска.\n' +
-    '- 2–4 факта: история создания, смысл текста, награды и чарты, сэмплы, коллаборации, необычные детали записи.\n' +
+    '- 2–4 факта: история создания, смысл текста, награды и чарты, сэмплы, коллаборации, откуда трек (игра, аниме, фильм), необычные детали записи.\n' +
     '- Не пересказывай очевидное (название, длительность).\n' +
     '- Если трек найти не удалось или это малоизвестный авторский трек без информации в сети — верни "known": false и пустой facts. НИЧЕГО не выдумывай.\n\n' +
     info;
   const res = UrlFetchApp.fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-    headers: { Authorization: 'Bearer ' + key, 'HTTP-Referer': 'https://laitsberg.github.io', 'X-Title': 'Live Spravki' },
+    headers: { Authorization: 'Bearer ' + key, 'HTTP-Referer': 'https://laitsberg.github.io/live-spravki/', 'X-Title': 'Live Spravki' },
     payload: JSON.stringify({ model: model, temperature: 0.2, messages: [{ role: 'user', content: prompt }] }),
   });
   const code = res.getResponseCode(), body = res.getContentText();
