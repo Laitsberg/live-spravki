@@ -321,30 +321,58 @@ function processText(text, key) {
   fresh.forEach(t => done.add(t.id)); seenInterim.set(key, done);
   if (fresh.length) onTermsHeard(fresh);
 }
-function startRec() {
-  if (!SR) { alert('Этот браузер не умеет распознавать речь. Открой пульт в Google Chrome.'); return; }
-  rec = new SR(); rec.lang = 'ru-RU'; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
-  let session = Date.now();
-  rec.onstart = () => setDot('dMic', 'on', 'речь: слушаю', 'sMic');
-  rec.onresult = (ev) => {
+// Chrome иногда «засыпает»: сессия распознавания молча перестаёт присылать текст.
+// Поэтому каждая сессия — новый объект, а сторож перезапускает её, если долго тишина.
+let lastActivity = 0, restarts = 0, watchdog = null, sessionId = 0;
+function newSession() {
+  if (!listening) return;
+  const my = ++sessionId;
+  const r = new SR(); rec = r;
+  r.lang = 'ru-RU'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+  r.onstart = () => { if (my === sessionId) { lastActivity = Date.now(); setDot('dMic', 'on', 'речь: слушаю' + (restarts ? ' · перезапусков: ' + restarts : ''), 'sMic'); } };
+  r.onresult = (ev) => {
+    if (my !== sessionId) return;
+    lastActivity = Date.now();
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
-      const r = ev.results[i], text = r[0].transcript.trim(); if (!text) continue;
-      processText(text, session + ':' + i);
-      addLine(text, !r.isFinal);
+      const res = ev.results[i], text = res[0].transcript.trim(); if (!text) continue;
+      processText(text, my + ':' + i);
+      addLine(text, !res.isFinal);
     }
   };
-  rec.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { listening = false; setDot('dMic', 'err', 'нет доступа к микрофону', 'sMic'); $('btnMic').textContent = '▶ Слушать'; }
-    else setDot('dMic', 'warn', 'речь: ' + e.error, 'sMic');
+  r.onerror = (e) => {
+    if (my !== sessionId) return;
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { stopRec(); setDot('dMic', 'err', 'нет доступа к микрофону', 'sMic'); return; }
+    if (e.error !== 'no-speech' && e.error !== 'aborted') setDot('dMic', 'warn', 'речь: ' + e.error + ', перезапуск…', 'sMic');
   };
-  rec.onend = () => { if (listening) { session = Date.now(); try { rec.start(); } catch (e) { setTimeout(() => listening && rec.start(), 500); } } else setDot('dMic', '', 'речь выкл.', 'sMic'); };
-  listening = true; rec.start();
+  r.onend = () => { if (my === sessionId && listening) setTimeout(restartRec, 250); };
+  try { r.start(); } catch (e) { setTimeout(restartRec, 800); }
+}
+function restartRec() {
+  if (!listening) return;
+  restarts++;
+  const old = rec; sessionId++; // старая сессия больше ничего не пишет
+  try { old && old.abort(); } catch (e) {}
+  if (interimEl) { interimEl.remove(); interimEl = null; }
+  setTimeout(newSession, 150);
+}
+function startRec() {
+  if (!SR) { alert('Этот браузер не умеет распознавать речь. Открой пульт в Google Chrome.'); return; }
+  listening = true; restarts = 0; lastActivity = Date.now();
+  newSession();
+  clearInterval(watchdog);
+  watchdog = setInterval(() => {
+    if (!listening) return;
+    const idle = Date.now() - lastActivity;
+    if (idle > 12000) { lastActivity = Date.now(); restartRec(); } // 12 сек без текста — перезапуск
+  }, 1000);
   $('btnMic').textContent = '■ Стоп';
 }
-$('btnMic').onclick = () => {
-  if (listening) { listening = false; rec && rec.stop(); $('btnMic').textContent = '▶ Слушать'; }
-  else startRec();
-};
+function stopRec() {
+  listening = false; clearInterval(watchdog); sessionId++;
+  try { rec && rec.abort(); } catch (e) {}
+  $('btnMic').textContent = '▶ Слушать'; setDot('dMic', '', 'речь выкл.', 'sMic');
+}
+$('btnMic').onclick = () => { if (listening) stopRec(); else startRec(); };
 $('btnFake').onclick = () => { const t = $('fakeText').value.trim(); if (!t) return; processText(t, 'fake' + Date.now()); addLine(t, false); $('fakeText').value = ''; };
 $('fakeText').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnFake').click(); });
 
