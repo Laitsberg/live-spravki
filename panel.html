@@ -367,7 +367,11 @@ async function pollSheet(force) {
     current = tr; lastRowKey = key;
     renderTrack();
     if (changed && tr && cfg.autoTrack && !force) showCard(trackCard(tr));
-  } catch (e) { setDot('dSheet', 'err', 'таблица: ' + e.message, 'sSheet'); }
+  } catch (e) {
+    const msg = /fetch/i.test(e.message) ? 'нет доступа к скрипту (см. подсказку)' : e.message;
+    setDot('dSheet', 'err', 'таблица: ' + msg, 'sSheet');
+    if (/fetch/i.test(e.message)) $('trackBox').innerHTML = '<div class="empty">Скрипт не отвечает браузеру. Открой ссылку скрипта в новой вкладке: если там просят войти в Google или «нет доступа» — в развёртывании нужно выбрать «Выполнять от имени: меня» и «Доступ: все». Если видишь текст вида {"ok":…} — всё хорошо, обнови эту страницу.</div>';
+  }
 }
 setInterval(() => pollSheet(false), 5000);
 $('btnRefresh').onclick = () => { pollSheet(true); loadRows(); };
