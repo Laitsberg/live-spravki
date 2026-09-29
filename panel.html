@@ -68,6 +68,24 @@
   .rowbtn { text-align: left; width: 100%; display: flex; gap: 8px; align-items: center; font-weight: 600; }
   .rowbtn .grow { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .kbd { font: 700 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--muted); }
+  .modal { position: fixed; inset: 0; background: rgba(4,7,14,.72); backdrop-filter: blur(4px); z-index: 20; display: none; }
+  .modal.open { display: block; }
+  .modal .box { position: absolute; inset: 24px; max-width: 1100px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
+  .modal .head { display: flex; gap: 10px; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .modal .head h2 { margin: 0; }
+  .modal .scroll { overflow: auto; padding: 16px 18px; flex: 1; }
+  .term { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  .term.off { opacity: .55; }
+  .term .top { display: flex; gap: 10px; align-items: center; cursor: pointer; }
+  .term .top b { font-family: Unbounded, sans-serif; font-size: 13px; letter-spacing: .1em; color: var(--aqua); }
+  .term .top .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; }
+  .term form { display: none; margin-top: 10px; }
+  .term.edit form { display: block; }
+  .term .grid2 { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+  @media (max-width: 800px) { .term .grid2 { grid-template-columns: 1fr; } }
+  .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(111,227,255,.12); color: var(--aqua); margin: 2px 4px 2px 0; }
+  .count { font-size: 12px; color: var(--muted); text-align: right; }
+  .count.bad { color: var(--coral); }
 </style>
 </head>
 <body>
@@ -77,6 +95,7 @@
   <span class="pill"><span class="dot" id="dBus"></span><span id="sBus">оверлей</span></span>
   <span class="pill"><span class="dot" id="dSheet"></span><span id="sSheet">таблица не подключена</span></span>
   <span class="spacer"></span>
+  <button id="btnDict">📖 Словарь терминов</button>
   <button id="btnSkip" title="Убрать текущую карточку (Esc)">Пропустить <span class="kbd">Esc</span></button>
   <button class="danger" id="btnHide" title="Скрыть всё и очистить очередь">Скрыть всё</button>
 </header>
@@ -172,6 +191,27 @@
   </div>
 </main>
 
+<div class="modal" id="dict">
+  <div class="box">
+    <div class="head">
+      <h2>Словарь терминов</h2>
+      <span class="pill" id="dictSrc">…</span>
+      <span class="spacer"></span>
+      <input id="dictSearch" placeholder="поиск" style="width:200px">
+      <button class="primary" id="btnNewTerm">+ Новый термин</button>
+      <button id="btnDictClose">Закрыть ✕</button>
+    </div>
+    <div class="scroll">
+      <div class="row" style="margin-bottom:12px">
+        <input id="dictTest" placeholder="Проверить фразу: например «тут классная вибратка и перегруз»" style="flex:1">
+      </div>
+      <div id="dictTestOut" class="hint" style="margin:-4px 0 14px"></div>
+      <p class="hint" style="margin:0 0 14px">Слова — это <b>начала слов</b>, через запятую: «хроматик» сработает на «хроматика», «хроматике», «хроматикой». Если нужно только точное слово — поставь в конце «!» (например «бас!», чтобы не ловить «басня»). Можно фразу из нескольких слов: «органный пункт».</p>
+      <div id="dictList"></div>
+    </div>
+  </div>
+</div>
+
 <script src="terms.js"></script>
 <script src="bus.js"></script>
 <script>
@@ -207,7 +247,7 @@ const bind = (id, key, type) => {
     cfg[key] = type === 'check' ? el.checked : type === 'num' ? Number(el.value) : el.value.trim();
     store.set(key, cfg[key]);
     if (['topic', 'pos', 'sound'].includes(key)) updateLinks();
-    if (key === 'scriptUrl') { lastRowKey = null; pollSheet(true); }
+    if (key === 'scriptUrl') { lastRowKey = null; pollSheet(true); loadTerms(); }
   });
 };
 bind('scriptUrl', 'scriptUrl'); bind('token', 'token'); bind('gap', 'gap', 'num'); bind('cool', 'cool', 'num'); bind('dur', 'dur', 'num');
@@ -257,7 +297,15 @@ $('btnCustom').onclick = () => { const t = $('cTitle').value.trim(), x = $('cTex
 
 // ───────── поиск терминов в речи ─────────
 const norm = (s) => ' ' + s.toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/gi, ' ').trim() + ' ';
-const TERMS = window.TERMS.map(t => ({ ...t, pats: t.match.map(p => ' ' + norm(p).trim() + (p.endsWith(' ') ? ' ' : '')) }));
+// Словарь: общий — из таблицы (редактируется в окне «Словарь»), запасной — встроенный terms.js
+let TERMS = [], STEMS = [], termsSource = 'builtin';
+const toPat = (p) => { const exact = /[! ]$/.test(p); const core = norm(p.replace(/!\s*$/, '')).trim(); return core ? ' ' + core + (exact ? ' ' : '') : null; };
+function compileTerms(list) {
+  TERMS = list.filter(t => t.enabled !== false).map(t => ({ ...t, pats: (t.match || []).map(toPat).filter(Boolean) })).filter(t => t.pats.length);
+  STEMS = TERMS.flatMap(t => t.pats).filter(p => p.trim().indexOf(' ') < 0).map(p => ({ s: p.trim(), exact: p.endsWith(' ') }));
+}
+const builtinTerms = () => window.TERMS.map(t => ({ ...t, match: t.match.map(m => m.endsWith(' ') ? m.trim() + '!' : m), enabled: true }));
+let dictTerms = builtinTerms(); compileTerms(dictTerms);
 const termState = {}; // id -> {lastShown, lastHeard, status}
 const heard = [];     // [{term, at, status}]
 function findTerms(text) {
@@ -265,8 +313,6 @@ function findTerms(text) {
   for (const t of TERMS) if (t.pats.some(p => n.includes(p))) found.push(t);
   return found;
 }
-const STEMS = TERMS.flatMap(t => t.pats).filter(p => p.trim().indexOf(' ') < 0)
-  .map(p => ({ s: p.trim(), exact: p.endsWith(' ') && p.length > p.trimEnd().length }));
 function highlight(text) {
   const html = text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   return html.split(/(\s+)/).map(w => {
@@ -498,8 +544,109 @@ function renderRows() {
 $('rowSearch').addEventListener('input', renderRows);
 setInterval(loadRows, 60000);
 
+
+// ───────── словарь терминов: загрузка из таблицы и редактор ─────────
+async function apiPost(body) {
+  if (!cfg.scriptUrl) throw new Error('таблица не подключена');
+  const r = await fetch(cfg.scriptUrl, { method: 'POST', body: JSON.stringify(Object.assign({ token: cfg.token }, body)) });
+  const j = await r.json(); if (!j.ok) throw new Error(j.error || 'ошибка скрипта'); return j;
+}
+function setTerms(list, source) {
+  dictTerms = list; termsSource = source; compileTerms(dictTerms);
+  $('dictSrc').innerHTML = source === 'sheet'
+    ? '<span class="dot on"></span>общий словарь из таблицы · ' + list.length
+    : '<span class="dot warn"></span>встроенный словарь (подключи таблицу, чтобы править)';
+  if ($('dict').classList.contains('open')) renderDict();
+}
+async function loadTerms() {
+  if (!cfg.scriptUrl) { setTerms(builtinTerms(), 'builtin'); return; }
+  try {
+    const j = await api({ action: 'terms' });
+    if (!j.terms.length && cfg.token) { // таблица пустая — один раз заливаем стандартный словарь
+      const k = await apiPost({ action: 'seedTerms', terms: builtinTerms() }); setTerms(k.terms, 'sheet');
+    } else if (j.terms.length) setTerms(j.terms, 'sheet');
+    else setTerms(builtinTerms(), 'builtin');
+  } catch (e) { if (termsSource !== 'sheet') setTerms(builtinTerms(), 'builtin'); }
+}
+setInterval(() => { if (!$('dict').classList.contains('open')) loadTerms(); }, 60000);
+
+let editingId = null;
+function renderDict() {
+  const q = norm($('dictSearch').value).trim();
+  const list = dictTerms.filter(t => !q || norm([t.kicker, t.title, t.text, (t.match || []).join(' ')].join(' ')).includes(q));
+  const box = $('dictList'); box.innerHTML = '';
+  if (!list.length) box.innerHTML = '<div class="empty">Ничего не найдено.</div>';
+  list.forEach(t => box.appendChild(termEl(t)));
+}
+function termEl(t) {
+  const d = document.createElement('div');
+  const isNew = !t.id;
+  d.className = 'term' + (t.enabled === false ? ' off' : '') + (editingId === (t.id || '__new') ? ' edit' : '');
+  d.innerHTML = `
+    <div class="top"><b>${esc(t.kicker || 'НОВЫЙ ТЕРМИН')}</b><span class="grow">${esc(t.title || '')} — ${(t.match || []).map(m => `<span class="chip">${esc(m)}</span>`).join('')}</span>
+      ${t.enabled === false ? '<span class="tag">выкл.</span>' : ''}<span class="muted">✎</span></div>
+    <form>
+      <div class="grid2">
+        <div><label>Надпись сверху</label><input name="kicker" value="${esc(t.kicker || '')}" placeholder="ХРОМАТИКА"></div>
+        <div><label>Заголовок</label><input name="title" value="${esc(t.title || '')}" placeholder="Движение по полутонам"></div>
+      </div>
+      <label>Пояснение <span class="count" data-c></span></label>
+      <textarea name="text" placeholder="Коротко и понятно, до ~150 символов">${esc(t.text || '')}</textarea>
+      <label>На какие слова срабатывать (через запятую)</label>
+      <input name="match" value="${esc((t.match || []).join(', '))}" placeholder="хроматик, хроматизм">
+      <div class="row" style="margin-top:10px">
+        <label class="toggle"><input type="checkbox" name="enabled" ${t.enabled === false ? '' : 'checked'}> включён</label>
+        <span class="spacer" style="flex:1"></span>
+        <button type="button" class="small" data-a="preview">Показать на экране</button>
+        ${isNew ? '' : '<button type="button" class="small danger" data-a="del">Удалить</button>'}
+        <button type="button" class="small" data-a="cancel">Отмена</button>
+        <button type="submit" class="small primary">Сохранить</button>
+      </div>
+      <div class="hint" data-msg></div>
+    </form>`;
+  const f = d.querySelector('form'), msg = d.querySelector('[data-msg]'), cnt = d.querySelector('[data-c]');
+  const upd = () => { const n = f.text.value.length; cnt.textContent = n + ' / 150'; cnt.className = 'count' + (n > 170 ? ' bad' : ''); };
+  f.text.addEventListener('input', upd); upd();
+  d.querySelector('.top').onclick = () => { editingId = editingId === (t.id || '__new') ? null : (t.id || '__new'); renderDict(); };
+  const read = () => ({ id: t.id, kicker: f.kicker.value.trim().toUpperCase(), title: f.title.value.trim(), text: f.text.value.trim(),
+    match: f.match.value.split(',').map(x => x.trim().toLowerCase()).filter(Boolean), enabled: f.enabled.checked });
+  f.onsubmit = async (e) => {
+    e.preventDefault(); const v = read();
+    if (!v.kicker || !v.match.length) { msg.textContent = 'Нужны надпись и хотя бы одно слово.'; return; }
+    if (termsSource !== 'sheet') { msg.textContent = 'Сначала подключи таблицу в настройках — словарь хранится там, чтобы у всех пультов был один и тот же.'; return; }
+    msg.textContent = 'Сохраняю…';
+    try { const j = await apiPost({ action: 'saveTerm', term: v }); editingId = null; setTerms(j.terms, 'sheet'); }
+    catch (err) { msg.textContent = 'Не сохранилось: ' + err.message; }
+  };
+  d.querySelector('[data-a="cancel"]').onclick = () => { editingId = null; if (isNew) dictTerms = dictTerms.filter(x => x !== t); renderDict(); };
+  d.querySelector('[data-a="preview"]').onclick = () => { const v = read(); showCard({ kind: 'term', kicker: 'СПРАВКА · ' + v.kicker, title: v.title, text: v.text }); };
+  const del = d.querySelector('[data-a="del"]');
+  if (del) del.onclick = async () => {
+    if (!confirm('Удалить термин «' + t.kicker + '»?')) return;
+    try { const j = await apiPost({ action: 'deleteTerm', id: t.id }); editingId = null; setTerms(j.terms, 'sheet'); }
+    catch (err) { msg.textContent = 'Не удалилось: ' + err.message; }
+  };
+  return d;
+}
+$('btnDict').onclick = () => { $('dict').classList.add('open'); renderDict(); loadTerms(); };
+$('btnDictClose').onclick = () => { $('dict').classList.remove('open'); editingId = null; };
+$('dict').addEventListener('click', (e) => { if (e.target.id === 'dict') $('btnDictClose').click(); });
+$('dictSearch').addEventListener('input', renderDict);
+$('btnNewTerm').onclick = () => {
+  if (dictTerms.some(x => !x.id)) return;
+  const t = { kicker: '', title: '', text: '', match: [], enabled: true };
+  dictTerms.unshift(t); editingId = '__new'; $('dictSearch').value = ''; renderDict();
+  const first = $('dictList').querySelector('input[name="kicker"]'); first && first.focus();
+};
+$('dictTest').addEventListener('input', () => {
+  const v = $('dictTest').value.trim();
+  if (!v) { $('dictTestOut').textContent = ''; return; }
+  const found = findTerms(v);
+  $('dictTestOut').innerHTML = found.length ? 'Сработает: ' + found.map(t => `<span class="chip">${esc(t.kicker)}</span>`).join('') : 'Ни один термин не сработает.';
+});
+
 // старт
-updateLinks(); pollSheet(true); loadRows();
+updateLinks(); pollSheet(true); loadRows(); loadTerms();
 </script>
 </body>
 </html>

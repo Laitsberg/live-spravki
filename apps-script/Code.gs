@@ -52,7 +52,9 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   try {
     let out;
-    if (p.action === 'list') {
+    if (p.action === 'terms') {
+      out = { terms: readTerms_() };
+    } else if (p.action === 'list') {
       const idx = cardIndex_();
       out = { rows: listRows_().map(r => ({ row: r.row, title: r.title, who: r.who, status: r.status, hasCard: !!(idx[r.key] && idx[r.key].json) })) };
     } else if (p.action === 'row') {
@@ -293,4 +295,52 @@ function askAI_(r, meta) {
   const txt = JSON.parse(body).choices[0].message.content || '';
   const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error('модель не вернула JSON');
   return JSON.parse(m[0]);
+}
+
+
+// ───────────────────────── словарь терминов (редактируется из пульта) ─────────────────────────
+// Хранится на вкладке «Термины» твоей таблицы карточек. Колонки: id | надпись | заголовок | пояснение | слова | вкл | обновлено
+function termsSheet_() {
+  const ss = cardsBook_(); let sh = ss.getSheetByName('Термины');
+  if (!sh) {
+    sh = ss.insertSheet('Термины');
+    sh.appendRow(['id', 'надпись (kicker)', 'заголовок', 'пояснение', 'слова (через запятую; «!» в конце — только точное слово)', 'вкл', 'обновлено']);
+    sh.setFrozenRows(1); sh.setColumnWidth(4, 420); sh.setColumnWidth(5, 320);
+  }
+  return sh;
+}
+function readTerms_() {
+  const sh = termsSheet_(); const last = sh.getLastRow(); if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, 6).getValues().filter(v => v[0]).map(v => ({
+    id: String(v[0]), kicker: String(v[1]), title: String(v[2]), text: String(v[3]),
+    match: String(v[4]).split(',').map(x => x.trim()).filter(Boolean), enabled: v[5] !== false && String(v[5]).toLowerCase() !== 'false',
+  }));
+}
+function termRow_(t) { return [t.id, t.kicker || '', t.title || '', t.text || '', (t.match || []).join(', '), t.enabled !== false, new Date()]; }
+
+// Запись идёт POST-запросом из пульта (text/plain, чтобы браузер не делал лишних проверок). Нужен токен.
+function doPost(e) {
+  try {
+    const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    if (!body.token || body.token !== PropertiesService.getScriptProperties().getProperty('GEN_TOKEN')) throw new Error('неверный токен');
+    const lock = LockService.getScriptLock(); lock.waitLock(10000);
+    try {
+      const sh = termsSheet_(); const last = sh.getLastRow();
+      const ids = last > 1 ? sh.getRange(2, 1, last - 1, 1).getValues().map(v => String(v[0])) : [];
+      if (body.action === 'saveTerm') {
+        const t = body.term || {}; if (!t.id) t.id = 't' + Date.now().toString(36);
+        if (!t.kicker || !(t.match || []).length) throw new Error('нужны надпись и хотя бы одно слово');
+        const i = ids.indexOf(String(t.id));
+        if (i >= 0) sh.getRange(i + 2, 1, 1, 7).setValues([termRow_(t)]); else sh.appendRow(termRow_(t));
+      } else if (body.action === 'deleteTerm') {
+        const i = ids.indexOf(String(body.id)); if (i >= 0) sh.deleteRow(i + 2);
+      } else if (body.action === 'seedTerms') {
+        if (ids.length) throw new Error('словарь уже есть');
+        const rows = (body.terms || []).map(termRow_); if (rows.length) sh.getRange(2, 1, rows.length, 7).setValues(rows);
+      } else throw new Error('неизвестное действие');
+    } finally { lock.releaseLock(); }
+    return json_({ ok: true, terms: readTerms_() });
+  } catch (err) {
+    return json_({ ok: false, error: String(err.message || err) });
+  }
 }
