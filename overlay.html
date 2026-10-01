@@ -5,76 +5,129 @@
 <title>Живые справки — оверлей</title>
 <meta name="viewport" content="width=1920">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Unbounded:wght@600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
+  /* Значения по умолчанию; пульт меняет их через «Оформление» (см. style.js). */
   :root {
-    --aqua: #6fe3ff; --gold: #ffce5c; --coral: #ff5a6e; --violet: #b18cff;
-    --card: rgba(10, 16, 30, 0.92); --text: #fff; --muted: rgba(255,255,255,.74);
+    --c-term: #6fe3ff; --c-fact: #ffce5c; --c-track: #ff5a6e; --c-custom: #b18cff; --c-track-soft: rgba(255,90,110,.22);
+    --card: rgba(10, 16, 30, 0.92); --text: #fff; --muted: rgba(255,255,255,.74); --faint: rgba(255,255,255,.42);
+    --border: rgba(255,255,255,.14); --shadow: rgba(0,0,0,.55); --badge-fg: #0a101e;
+    --gloss: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 50%);
+    --font-head: Unbounded, sans-serif; --font-body: Montserrat, system-ui, sans-serif;
+    --title: 30px; --body: 22px; --kicker: 15px; --kicker-case: uppercase;
+    --width: 640px; --radius: 26px; --margin: 48px; --pad-left: 56px;
     --scale: 1;
   }
   html, body { margin: 0; background: transparent; overflow: hidden; width: 1920px; height: 1080px; }
-  body { font-family: Montserrat, system-ui, sans-serif; color: var(--text); }
+  body { font-family: var(--font-body); color: var(--text); }
   #stage { position: absolute; inset: 0; }
   .slot { position: absolute; transform-origin: top left; transform: scale(var(--scale)); }
-  .slot.tl { left: 48px; top: 48px; }
-  .slot.tr { right: 48px; top: 48px; transform-origin: top right; }
-  .slot.bl { left: 48px; bottom: 48px; transform-origin: bottom left; }
-  .slot.br { right: 48px; bottom: 48px; transform-origin: bottom right; }
+  .slot.tl { left: var(--margin); top: var(--margin); }
+  .slot.tr { right: var(--margin); top: var(--margin); transform-origin: top right; }
+  .slot.bl { left: var(--margin); bottom: var(--margin); transform-origin: bottom left; }
+  .slot.br { right: var(--margin); bottom: var(--margin); transform-origin: bottom right; }
 
   .card {
-    position: relative; width: 640px; box-sizing: border-box;
-    padding: 26px 30px 28px 56px; border-radius: 26px;
-    background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 50%), var(--card);
-    border: 1.5px solid rgba(255,255,255,.14);
-    box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 2px 0 rgba(255,255,255,.04) inset;
+    position: relative; width: var(--width); box-sizing: border-box;
+    padding: 26px 30px 28px var(--pad-left); border-radius: var(--radius);
+    background: var(--gloss), var(--card);
+    border: 1.5px solid var(--border);
+    box-shadow: 0 18px 50px var(--shadow);
     display: flex; gap: 22px; align-items: flex-start;
-    opacity: 0; transform: translateX(-70px);
+    opacity: 0; transform: var(--from, none);
     transition: opacity .35s ease, transform .5s cubic-bezier(.2,.9,.25,1.15);
   }
-  .slot.tr .card, .slot.br .card { transform: translateX(70px); }
+  .card.wide { width: calc(var(--width) + 80px); }
+  .anim-slide .slot .card { --from: translateX(-70px); }
+  .anim-slide .slot.tr .card, .anim-slide .slot.br .card { --from: translateX(70px); }
+  .anim-rise .card { --from: translateY(40px); }
+  .anim-pop .card { --from: scale(.82); }
+  .anim-none .card { transition: none; }
   .slot .card.in { opacity: 1; transform: none; }
   .slot .card.out { opacity: 0; transform: translateY(-14px); transition: opacity .4s ease, transform .4s ease; }
+  .anim-none .slot .card.out { transition: none; }
   .card::before {
     content: ''; position: absolute; left: 24px; top: 24px; bottom: 24px; width: 8px;
     border-radius: 8px; background: var(--accent);
   }
+  .no-stripe { --pad-left: 30px; }
+  .no-stripe .card::before { display: none; }
+  .no-badge .badge { display: none; }
+  .no-timer .timer { display: none; }
   .body { flex: 1; min-width: 0; }
-  .kicker { display: flex; align-items: center; gap: 12px; font-family: Unbounded, sans-serif;
-    font-weight: 600; font-size: 15px; letter-spacing: .2em; color: var(--accent); text-transform: uppercase; }
-  .badge { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #0a101e;
-    display: grid; place-items: center; font-weight: 800; font-size: 17px; letter-spacing: 0; flex: none; }
-  .title { font-family: Unbounded, sans-serif; font-weight: 700; font-size: 30px; line-height: 1.25; margin-top: 14px; }
-  .text { font-weight: 600; font-size: 22px; line-height: 1.42; color: var(--muted); margin-top: 10px; }
-  .src { font-weight: 600; font-size: 15px; color: rgba(255,255,255,.42); margin-top: 12px; }
-  .cover { width: 150px; height: 150px; border-radius: 18px; object-fit: cover; flex: none;
+  .kicker { display: flex; align-items: center; gap: 12px; font-family: var(--font-head);
+    font-weight: 600; font-size: var(--kicker); letter-spacing: .2em; color: var(--accent); text-transform: var(--kicker-case); }
+  .badge { width: calc(var(--kicker) * 2); height: calc(var(--kicker) * 2); border-radius: 50%; background: var(--accent); color: var(--badge-fg);
+    display: grid; place-items: center; font-family: var(--font-body); font-weight: 800; font-size: calc(var(--kicker) * 1.13); letter-spacing: 0; flex: none; }
+  .title { font-family: var(--font-head); font-weight: 700; font-size: var(--title); line-height: 1.25; margin-top: 14px; }
+  .text { font-weight: 600; font-size: var(--body); line-height: 1.42; color: var(--muted); margin-top: 10px; }
+  .src { font-weight: 600; font-size: calc(var(--body) * .68); color: var(--faint); margin-top: 12px; }
+  .cover { width: 150px; height: 150px; border-radius: calc(var(--radius) * .7); object-fit: cover; flex: none;
     box-shadow: 0 10px 26px rgba(0,0,0,.5); }
   .who { display: inline-block; margin-top: 14px; padding: 7px 16px; border-radius: 999px;
-    border: 2px solid var(--coral); background: rgba(255,90,110,.22); font-weight: 700; font-size: 17px;
+    border: 2px solid var(--c-track); background: var(--c-track-soft); font-weight: 700; font-size: calc(var(--body) * .77);
     letter-spacing: .06em; text-transform: uppercase; }
-  .timer { position: absolute; left: 56px; right: 30px; bottom: 12px; height: 3px; border-radius: 3px;
+  .timer { position: absolute; left: var(--pad-left); right: 30px; bottom: 12px; height: 3px; border-radius: 3px;
     background: var(--accent); opacity: .55; transform-origin: left; }
   #status { position: absolute; left: 12px; bottom: 10px; font: 600 14px Montserrat, sans-serif;
     color: rgba(255,255,255,.6); background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 8px; }
 </style>
 </head>
 <body>
-<div id="stage"><div id="slot" class="slot tl"></div></div>
+<div id="stage" class="anim-slide"><div id="slot" class="slot tl"></div></div>
 <div id="status" hidden></div>
 <script src="bus.js"></script>
+<script src="style.js"></script>
 <script>
   const q = new URLSearchParams(location.search);
   const topic = q.get('topic') || '';
+  const demo = q.get('demo') === '1'; // превью в окне «Оформление» пульта: одна неподвижная карточка-образец
+  const stage = document.getElementById('stage');
   const slot = document.getElementById('slot');
-  slot.className = 'slot ' + (q.get('pos') || 'tl');
-  if (q.get('scale')) document.documentElement.style.setProperty('--scale', q.get('scale'));
+  const urlScale = Number(q.get('scale')) || 1;
   if (q.get('x')) slot.style.left = q.get('x') + 'px';
   if (q.get('y')) slot.style.top = q.get('y') + 'px';
   const status = document.getElementById('status');
-  const showStatus = q.get('debug') === '1' || !topic;
+  const showStatus = !demo && (q.get('debug') === '1' || !topic);
   const setStatus = (s) => { if (!showStatus) return; status.hidden = false; status.textContent = s; };
   if (!topic) setStatus('Нет topic в ссылке — откройте ссылку из пульта');
 
-  const ACCENT = { term: 'var(--aqua)', fact: 'var(--gold)', track: 'var(--coral)', custom: 'var(--violet)' };
+  // --- оформление: приходит с пульта (вместе с карточками или отдельным сообщением) ---
+  let style = null;
+  const loadedFonts = new Set(['Montserrat', 'Unbounded']);
+  function applyStyle(raw, force) {
+    const s = CardStyle.normalize(raw);
+    if (!force && style && s.v < style.v) return; // старый пульт не перебивает свежий стиль
+    style = s;
+    const R = document.documentElement.style, set = (k, v) => R.setProperty(k, v), rgba = CardStyle.rgba;
+    ['term', 'fact', 'track', 'custom'].forEach(k => set('--c-' + k, s[k]));
+    set('--c-track-soft', rgba(s.track, .22));
+    set('--card', rgba(s.bg, s.bgAlpha / 100)); set('--badge-fg', s.bg);
+    set('--text', s.text); set('--muted', rgba(s.text, s.muted / 100)); set('--faint', rgba(s.text, s.muted / 100 * .57));
+    set('--border', rgba(s.text, s.border / 100)); set('--shadow', rgba('#000000', s.shadow / 100));
+    set('--gloss', s.gloss ? `linear-gradient(180deg, ${rgba(s.text, .07)}, ${rgba(s.text, 0)} 50%)` : 'linear-gradient(transparent, transparent)');
+    set('--font-head', `"${s.fontHead}", sans-serif`); set('--font-body', `"${s.fontBody}", system-ui, sans-serif`);
+    set('--title', s.title + 'px'); set('--body', s.body + 'px'); set('--kicker', s.kicker + 'px');
+    set('--kicker-case', s.upper ? 'uppercase' : 'none');
+    set('--width', s.width + 'px'); set('--radius', s.radius + 'px'); set('--margin', s.margin + 'px');
+    set('--scale', s.scale / 100 * urlScale);
+    stage.className = 'anim-' + s.anim + (s.stripe ? '' : ' no-stripe') + (s.badge ? '' : ' no-badge') + (s.timer ? '' : ' no-timer');
+    slot.className = 'slot ' + s.pos;
+    const need = [s.fontHead, s.fontBody].filter(f => !loadedFonts.has(f));
+    if (need.length) {
+      need.forEach(f => loadedFonts.add(f));
+      const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = CardStyle.fontUrl(need); document.head.appendChild(l);
+    }
+    if (!demo && s.v) try { localStorage.setItem('lso_style', JSON.stringify(s)); } catch (e) {}
+  }
+  (function initStyle() {
+    let saved = null;
+    if (!demo) try { saved = JSON.parse(localStorage.getItem('lso_style')); } catch (e) {}
+    // положение из ссылки — пока с пульта не пришло своё оформление
+    applyStyle(Object.assign({}, saved || {}, saved ? {} : { pos: q.get('pos') || 'tl' }), true);
+  })();
+
+  const ACCENT = { term: 'var(--c-term)', fact: 'var(--c-fact)', track: 'var(--c-track)', custom: 'var(--c-custom)' };
   const BADGE = { term: 'i', fact: '★', track: '♪', custom: '!' };
   const queue = []; let current = null, timer = null;
 
@@ -109,7 +162,7 @@
       </div>
       ${c.image ? `<img class="cover" src="${escA(c.image)}" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
       <div class="timer"></div>`;
-    if (c.image) el.style.width = '720px';
+    if (c.image) el.classList.add('wide');
     return el;
   }
   function next() {
@@ -129,11 +182,36 @@
     el.classList.remove('in'); el.classList.add('out');
     setTimeout(() => { el.remove(); if (current === el) current = null; setTimeout(next, 500); }, 420);
   }
-  Bus.subscribe(topic, (m) => {
-    if (m.type === 'show' && m.card) { if (m.card.priority) queue.unshift(m.card); else queue.push(m.card); if (queue.length > 5) queue.splice(5); next(); }
-    else if (m.type === 'hide') { queue.length = 0; hideCurrent(); }
-    else if (m.type === 'skip') { hideCurrent(); }
-  }, (s) => setStatus(s === 'online' ? 'Связь с пультом: есть' : 'Связь с пультом: переподключение…'));
+  if (demo) {
+    // Образцы для превью. Пульт присылает стиль и вид карточки через postMessage.
+    const cover = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a59"/><stop offset="1" stop-color="#6a3cff"/></linearGradient></defs><rect width="150" height="150" fill="url(#g)"/><circle cx="75" cy="75" r="46" fill="#111" opacity=".85"/><circle cx="75" cy="75" r="14" fill="#ffce5c"/></svg>');
+    const SAMPLES = {
+      term: { kind: 'term', kicker: 'СПРАВКА · ХРОМАТИКА', title: 'Движение по полутонам', text: 'Мелодия или гармония идёт шагами в полтона — звучит напряжённо и «скользко».' },
+      fact: { kind: 'fact', kicker: 'ФАКТ О ТРЕКЕ', title: 'Записан за одну ночь', text: 'Группа сводила трек в домашней студии, а вокал взяли из первого же дубля.', source: 'ru.wikipedia.org' },
+      track: { kind: 'track', kicker: 'СЕЙЧАС РАЗНОСИМ', title: 'Артист — Название трека', text: 'Альбом · 2024 · инди-рок', who: 'зрителя', image: cover },
+      custom: { kind: 'custom', kicker: 'КОММЕНТАРИЙ К ЗАКАЗУ', title: 'Комментарий от зрителя', text: 'Послушайте бридж на второй минуте — ради него всё и затевалось.' },
+    };
+    let kind = 'term';
+    const render = (replay) => {
+      slot.innerHTML = ''; const el = build(SAMPLES[kind]); slot.appendChild(el);
+      if (replay) requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+      else { el.style.transition = 'none'; el.classList.add('in'); el.offsetWidth; el.style.transition = ''; }
+    };
+    window.addEventListener('message', (e) => {
+      const m = e.data || {}; if (e.source !== window.parent) return;
+      if (m.type === 'style') applyStyle(m.style, true);
+      if (m.type === 'demo') { kind = SAMPLES[m.kind] ? m.kind : 'term'; render(m.replay); }
+    });
+    render(false);
+    window.parent.postMessage({ type: 'demo-ready' }, '*'); // не ждём загрузки шрифтов
+  } else {
+    Bus.subscribe(topic, (m) => {
+      if (m.style) applyStyle(m.style);
+      if (m.type === 'show' && m.card) { if (m.card.priority) queue.unshift(m.card); else queue.push(m.card); if (queue.length > 5) queue.splice(5); next(); }
+      else if (m.type === 'hide') { queue.length = 0; hideCurrent(); }
+      else if (m.type === 'skip') { hideCurrent(); }
+    }, (s) => setStatus(s === 'online' ? 'Связь с пультом: есть' : 'Связь с пультом: переподключение…'));
+  }
 </script>
 </body>
 </html>
