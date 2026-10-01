@@ -86,6 +86,34 @@
   .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(111,227,255,.12); color: var(--aqua); margin: 2px 4px 2px 0; }
   .count { font-size: 12px; color: var(--muted); text-align: right; }
   .count.bad { color: var(--coral); }
+  /* окно «Оформление» */
+  .design { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(330px, 1fr) minmax(380px, 1.2fr); }
+  .design .scroll { padding-top: 6px; }
+  .dprev { border-left: 1px solid var(--line); padding: 16px 18px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+  @media (max-width: 900px) { .design { grid-template-columns: 1fr; grid-auto-rows: max-content; overflow: auto; } .design .scroll, .dprev { overflow: visible; } .dprev { order: -1; border-left: 0; border-bottom: 1px solid var(--line); } }
+  .dgroup { border-bottom: 1px solid var(--line); padding: 10px 0 14px; }
+  .dgroup:last-child { border-bottom: 0; }
+  .dgroup h3 { font: 700 12px Unbounded, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--text); margin: 6px 0 4px; }
+  .dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .dgrid .full { grid-column: 1 / -1; }
+  .fld label { display: flex; justify-content: space-between; gap: 8px; }
+  .fld label .val { color: var(--aqua); font-weight: 700; letter-spacing: 0; }
+  .fld input[type=range] { padding: 0; border: 0; background: none; accent-color: var(--aqua); height: 24px; }
+  .fld input[type=color] { height: 38px; padding: 3px; cursor: pointer; }
+  .fld .toggle { margin-top: 12px; justify-content: flex-start; letter-spacing: 0; font-weight: 600; }
+  .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+  .preset { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 9px 10px; text-align: left; }
+  .preset .sw { display: flex; gap: 4px; }
+  .preset .sw i { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; background: transparent; padding: 6px 11px; font-size: 13px; }
+  .seg button.on { background: var(--aqua); color: #07101c; }
+  .corners { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-width: 320px; }
+  .corners button { padding: 6px 8px; font-size: 12px; }
+  .corners button.on { background: var(--aqua); color: #07101c; }
+  .preview.bg-dark { background: #111; } .preview.bg-light { background: #e8e8ec; }
+  .preview.bg-stream { background: linear-gradient(135deg, #24324f 0%, #6b3a63 45%, #d7875f 100%); }
+  .dirty { color: var(--gold); }
 </style>
 </head>
 <body>
@@ -95,6 +123,7 @@
   <span class="pill"><span class="dot" id="dBus"></span><span id="sBus">оверлей</span></span>
   <span class="pill"><span class="dot" id="dSheet"></span><span id="sSheet">таблица не подключена</span></span>
   <span class="spacer"></span>
+  <button id="btnDesign">🎨 Оформление</button>
   <button id="btnDict">📖 Словарь терминов</button>
   <button id="btnSkip" title="Убрать текущую карточку (Esc)">Пропустить <span class="kbd">Esc</span></button>
   <button class="danger" id="btnHide" title="Скрыть всё и очистить очередь">Скрыть всё</button>
@@ -158,6 +187,7 @@
       <div class="row" style="margin-top:8px">
         <button class="small" id="btnCopy">Скопировать</button>
         <button class="small" id="btnTest">Тестовая карточка</button>
+        <button class="small" id="btnDesign2">🎨 Оформление</button>
         <select id="pos" style="width:auto"><option value="tl">слева сверху</option><option value="tr">справа сверху</option><option value="bl">слева снизу</option><option value="br">справа снизу</option></select>
         <label class="toggle"><input type="checkbox" id="sound"> звук</label>
       </div>
@@ -212,8 +242,37 @@
   </div>
 </div>
 
+<div class="modal" id="design">
+  <div class="box">
+    <div class="head">
+      <h2>Оформление карточек</h2>
+      <span class="pill" id="designState">сохранено</span>
+      <span class="spacer"></span>
+      <button id="btnDesignReset" title="Вернуть стандартную тему (положение на экране останется)">Сбросить</button>
+      <button id="btnDesignClose">Закрыть ✕</button>
+      <button class="primary" id="btnDesignSave">Сохранить и применить</button>
+    </div>
+    <div class="design">
+      <div class="scroll" id="designForm"></div>
+      <div class="dprev">
+        <div class="row">
+          <div class="seg" id="dKind"><button data-k="term" class="on">Термин</button><button data-k="fact">Факт</button><button data-k="track">Трек</button><button data-k="custom">Комментарий</button></div>
+          <button class="small" id="btnReplay" title="Показать, как карточка появляется">▶ Появление</button>
+        </div>
+        <div class="preview" id="dPreview"><iframe id="dpv"></iframe></div>
+        <div class="row">
+          <div class="seg" id="dZoom"><button data-z="1" class="on">Крупно</button><button data-z="0">Весь экран</button></div>
+          <select id="dBg" style="width:auto"><option value="">фон: шахматка</option><option value="bg-stream">фон: картинка стрима</option><option value="bg-dark">фон: тёмный</option><option value="bg-light">фон: светлый</option></select>
+        </div>
+        <p class="hint" style="margin:0">Это превью: на экране у зрителей ничего не меняется, пока не нажмёшь «Сохранить и применить». Ссылку в OBS менять не нужно — оформление приходит по тому же каналу, что и карточки.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="terms.js"></script>
 <script src="bus.js"></script>
+<script src="style.js"></script>
 <script>
 // ───────── настройки ─────────
 const $ = (id) => document.getElementById(id);
@@ -226,7 +285,9 @@ const cfg = {
   scriptUrl: store.get('scriptUrl', ''), token: store.get('token', ''),
   gap: store.get('gap', 15), cool: store.get('cool', 15), dur: store.get('dur', 10),
   autoTerms: store.get('autoTerms', true), autoTrack: store.get('autoTrack', true),
-  pos: store.get('pos', 'tl'), sound: store.get('sound', false),
+  sound: store.get('sound', false),
+  // оформление карточек (окно «Оформление»); положение раньше хранилось отдельно — подхватываем его
+  style: CardStyle.normalize(store.get('style', null) || { pos: store.get('pos', 'tl') }),
 };
 // Настройки можно передать ссылкой: panel.html#topic=…&script=…&token=…
 // (после # — браузер никуда это не отправляет). Так второй человек получает тот же «канал» и таблицу.
@@ -236,6 +297,7 @@ const cfg = {
   if (h.get('topic')) cfg.topic = h.get('topic');
   if (h.get('script')) { cfg.scriptUrl = h.get('script'); store.set('scriptUrl', cfg.scriptUrl); }
   if (h.get('token')) { cfg.token = h.get('token'); store.set('token', cfg.token); }
+  if (h.get('style')) try { cfg.style = CardStyle.normalize(JSON.parse(h.get('style'))); store.set('style', cfg.style); } catch (e) {}
   history.replaceState(null, '', location.pathname); // убрать токен из адресной строки
   setTimeout(() => alert('Настройки пульта получены по ссылке ✓\nКарточки будут уходить в тот же оверлей.'), 300);
 })();
@@ -246,16 +308,18 @@ const bind = (id, key, type) => {
   el.addEventListener('change', () => {
     cfg[key] = type === 'check' ? el.checked : type === 'num' ? Number(el.value) : el.value.trim();
     store.set(key, cfg[key]);
-    if (['topic', 'pos', 'sound'].includes(key)) updateLinks();
+    if (['topic', 'sound'].includes(key)) updateLinks();
     if (key === 'scriptUrl') { lastRowKey = null; pollSheet(true); loadTerms(); }
   });
 };
 bind('scriptUrl', 'scriptUrl'); bind('token', 'token'); bind('gap', 'gap', 'num'); bind('cool', 'cool', 'num'); bind('dur', 'dur', 'num');
-bind('autoTerms', 'autoTerms', 'check'); bind('autoTrack', 'autoTrack', 'check'); bind('topic', 'topic'); bind('pos', 'pos'); bind('sound', 'sound', 'check');
+bind('autoTerms', 'autoTerms', 'check'); bind('autoTrack', 'autoTrack', 'check'); bind('topic', 'topic'); bind('sound', 'sound', 'check');
+$('pos').value = cfg.style.pos;
+$('pos').addEventListener('change', () => saveStyle(Object.assign({}, cfg.style, { pos: $('pos').value })));
 
 function overlayUrl(extra) {
   const u = new URL('overlay.html', location.href);
-  u.searchParams.set('topic', cfg.topic); u.searchParams.set('pos', cfg.pos);
+  u.searchParams.set('topic', cfg.topic); u.searchParams.set('pos', cfg.style.pos);
   if (cfg.sound) u.searchParams.set('sound', '1');
   for (const k in (extra || {})) u.searchParams.set(k, extra[k]);
   return u.toString();
@@ -271,6 +335,7 @@ $('btnNewTopic').onclick = () => { if (!confirm('Создать новую ко�
 $('btnShare').onclick = () => {
   const u = new URL('panel.html', location.href);
   const h = new URLSearchParams({ topic: cfg.topic }); if (cfg.scriptUrl) h.set('script', cfg.scriptUrl); if (cfg.token) h.set('token', cfg.token);
+  if (cfg.style.v) h.set('style', JSON.stringify(cfg.style));
   navigator.clipboard.writeText(u.toString() + '#' + h.toString());
   $('btnShare').textContent = 'Скопировано ✓'; setTimeout(() => $('btnShare').textContent = 'Скопировать ссылку на пульт с настройками', 1500);
 };
@@ -286,12 +351,24 @@ async function send(msg) {
 }
 function showCard(card) {
   lastShownAt = Date.now();
-  return send({ type: 'show', card: Object.assign({ duration: cfg.dur }, card) });
+  return send({ type: 'show', card: Object.assign({ duration: cfg.dur }, card), style: cfg.style.v ? cfg.style : undefined });
+}
+// Оформление уходит в оверлей отдельным сообщением и ещё с каждой карточкой —
+// так его получит и оверлей, который был выключен в момент сохранения.
+function saveStyle(s) {
+  cfg.style = CardStyle.normalize(Object.assign({}, s, { v: Date.now() }));
+  store.set('style', cfg.style);
+  $('pos').value = cfg.style.pos; $('obsLink').textContent = overlayUrl();
+  return send({ type: 'style', style: cfg.style });
 }
 const freeSlot = () => { lastShownAt = Date.now() - cfg.gap * 1000 + 1500; };
 $('btnHide').onclick = () => { freeSlot(); send({ type: 'hide' }); };
 $('btnSkip').onclick = () => { freeSlot(); send({ type: 'skip' }); };
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) $('btnSkip').click(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if ($('design').classList.contains('open')) { closeDesign(); return; }
+  if (!/INPUT|TEXTAREA/.test(document.activeElement.tagName)) $('btnSkip').click();
+});
 $('btnTest').onclick = () => showCard({ kind: 'term', kicker: 'СПРАВКА · ТЕСТ', title: 'Всё работает', text: 'Эта карточка пришла с пульта. Если видишь её в OBS — связь есть.' });
 $('btnCustom').onclick = () => { const t = $('cTitle').value.trim(), x = $('cText').value.trim(); if (!t && !x) return; showCard({ kind: 'custom', kicker: 'ПОЯСНЕНИЕ', title: t, text: x }); };
 
@@ -645,7 +722,143 @@ $('dictTest').addEventListener('input', () => {
   $('dictTestOut').innerHTML = found.length ? 'Сработает: ' + found.map(t => `<span class="chip">${esc(t.kicker)}</span>`).join('') : 'Ни один термин не сработает.';
 });
 
+// ───────── оформление карточек ─────────
+const DESIGN = [
+  { h: 'Цвета', items: [
+    { k: 'term', t: 'color', l: 'Термины' }, { k: 'fact', t: 'color', l: 'Факты о треке' },
+    { k: 'track', t: 'color', l: 'Карточка трека' }, { k: 'custom', t: 'color', l: 'Свои и комментарии' },
+    { k: 'bg', t: 'color', l: 'Фон карточки' }, { k: 'bgAlpha', t: 'range', l: 'Плотность фона', min: 0, max: 100, u: '%' },
+    { k: 'text', t: 'color', l: 'Цвет текста' }, { k: 'muted', t: 'range', l: 'Яркость пояснения', min: 30, max: 100, u: '%' },
+    { k: 'border', t: 'range', l: 'Рамка', min: 0, max: 60, u: '%' }, { k: 'shadow', t: 'range', l: 'Тень', min: 0, max: 100, u: '%' },
+    { k: 'gloss', t: 'check', l: 'блик сверху' },
+  ] },
+  { h: 'Шрифты', items: [
+    { k: 'fontHead', t: 'font', l: 'Заголовок и надпись' }, { k: 'fontBody', t: 'font', l: 'Текст' },
+    { k: 'title', t: 'range', l: 'Размер заголовка', min: 18, max: 56, u: 'px' }, { k: 'body', t: 'range', l: 'Размер текста', min: 14, max: 36, u: 'px' },
+    { k: 'kicker', t: 'range', l: 'Размер надписи сверху', min: 10, max: 26, u: 'px' }, { k: 'upper', t: 'check', l: 'надпись ЗАГЛАВНЫМИ' },
+  ] },
+  { h: 'Размер и место', items: [
+    { k: 'pos', t: 'pos', l: 'Угол экрана' }, { k: 'scale', t: 'range', l: 'Масштаб всей карточки', min: 50, max: 160, step: 5, u: '%' },
+    { k: 'width', t: 'range', l: 'Ширина', min: 420, max: 1000, step: 10, u: 'px' }, { k: 'margin', t: 'range', l: 'Отступ от края', min: 0, max: 200, step: 2, u: 'px' },
+    { k: 'radius', t: 'range', l: 'Скругление углов', min: 0, max: 48, u: 'px' },
+  ] },
+  { h: 'Детали', items: [
+    { k: 'anim', t: 'select', l: 'Как появляется', opts: { slide: 'выезжает сбоку', rise: 'всплывает снизу', pop: 'увеличивается', fade: 'проявляется', none: 'сразу, без анимации' } },
+    { k: 'stripe', t: 'check', l: 'цветная полоска слева' }, { k: 'badge', t: 'check', l: 'значок в кружке' },
+    { k: 'timer', t: 'check', l: 'полоска оставшегося времени' },
+  ] },
+];
+let draft = null, designKind = 'term', designZoom = true, fontsLoaded = false;
+const sameStyle = (a, b) => JSON.stringify(Object.assign({}, a, { v: 0 })) === JSON.stringify(Object.assign({}, b, { v: 0 }));
+function renderDesign() {
+  const f = $('designForm'); f.innerHTML = '';
+  const pg = document.createElement('div'); pg.className = 'dgroup';
+  pg.innerHTML = '<h3>Готовые темы</h3><div class="hint" style="margin:0">Тема меняет цвета и шрифты; угол, масштаб и ширина остаются.</div><div class="presets"></div>';
+  CardStyle.PRESETS.forEach(p => {
+    const s = CardStyle.withPreset(draft, p.id), b = document.createElement('button'); b.className = 'preset';
+    b.innerHTML = `<span style="font-family:'${s.fontHead}';font-size:13px">${p.name}</span><span class="sw">${['bg', 'term', 'fact', 'track', 'custom'].map(k => `<i style="background:${s[k]}"></i>`).join('')}</span>`;
+    b.onclick = () => { draft = s; renderDesign(); postDraft(); };
+    pg.querySelector('.presets').appendChild(b);
+  });
+  f.appendChild(pg);
+  for (const g of DESIGN) {
+    const box = document.createElement('div'); box.className = 'dgroup';
+    box.innerHTML = `<h3>${g.h}</h3><div class="dgrid"></div>`;
+    const grid = box.querySelector('.dgrid');
+    for (const it of g.items) grid.appendChild(designField(it));
+    f.appendChild(box);
+  }
+  updateDesignState();
+}
+function designField(it) {
+  const d = document.createElement('div'); d.className = 'fld' + (it.t === 'pos' || it.t === 'select' ? ' full' : '');
+  const v = draft[it.k];
+  const set = (val) => { draft[it.k] = val; postDraft(); };
+  if (it.t === 'check') {
+    d.innerHTML = `<label class="toggle"><input type="checkbox" ${v ? 'checked' : ''}> ${it.l}</label>`;
+    d.querySelector('input').onchange = (e) => set(e.target.checked);
+  } else if (it.t === 'range') {
+    d.innerHTML = `<label>${it.l}<span class="val"></span></label><input type="range" min="${it.min}" max="${it.max}" step="${it.step || 1}" value="${v}">`;
+    const val = d.querySelector('.val'), inp = d.querySelector('input');
+    const show = () => val.textContent = inp.value + ' ' + it.u;
+    inp.oninput = () => { show(); set(Number(inp.value)); }; show();
+  } else if (it.t === 'color') {
+    d.innerHTML = `<label>${it.l}<span class="val">${v}</span></label><input type="color" value="${v}">`;
+    const inp = d.querySelector('input');
+    inp.oninput = () => { d.querySelector('.val').textContent = inp.value; set(inp.value); };
+  } else if (it.t === 'font' || it.t === 'select') {
+    const opts = it.t === 'font' ? Object.fromEntries(Object.keys(CardStyle.FONTS).map(n => [n, n])) : it.opts;
+    d.innerHTML = `<label>${it.l}</label><select>${Object.entries(opts).map(([k, n]) =>
+      `<option value="${esc(k)}" ${k === v ? 'selected' : ''} ${it.t === 'font' ? `style="font-family:'${esc(k)}'"` : ''}>${esc(n)}</option>`).join('')}</select>`;
+    const sel = d.querySelector('select');
+    if (it.t === 'font') sel.style.fontFamily = `'${v}', Montserrat, sans-serif`;
+    sel.onchange = () => { if (it.t === 'font') sel.style.fontFamily = `'${sel.value}', Montserrat, sans-serif`; set(sel.value); };
+  } else if (it.t === 'pos') {
+    const names = { tl: '↖ слева сверху', tr: 'справа сверху ↗', bl: '↙ слева снизу', br: 'справа снизу ↘' };
+    d.innerHTML = `<label>${it.l}</label><div class="corners">${Object.entries(names).map(([k, n]) => `<button data-p="${k}" class="${k === v ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    d.querySelectorAll('button').forEach(b => b.onclick = () => {
+      d.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); set(b.dataset.p); fitDesignPreview();
+    });
+  }
+  return d;
+}
+function updateDesignState() {
+  const dirty = !sameStyle(draft, cfg.style);
+  $('designState').innerHTML = dirty ? '<span class="dirty">● есть несохранённые изменения</span>' : 'сохранено';
+}
+function postDraft(replay) {
+  updateDesignState();
+  const w = $('dpv').contentWindow; if (!w) return;
+  w.postMessage({ type: 'style', style: draft }, '*');
+  if (replay !== undefined) w.postMessage({ type: 'demo', kind: designKind, replay }, '*');
+}
+function fitDesignPreview() {
+  const box = $('dPreview'), fr = $('dpv'), W = box.clientWidth; if (!W) return;
+  if (!designZoom) { fr.style.transform = `scale(${W / 1920})`; return; }
+  // «Крупно»: показываем только ту часть экрана, где стоит карточка
+  const aw = 1100, ah = aw * 9 / 16, p = draft ? draft.pos : 'tl';
+  const x = p[1] === 'r' ? -(1920 - aw) : 0, y = p[0] === 'b' ? -(1080 - ah) : 0;
+  fr.style.transform = `scale(${W / aw}) translate(${x}px, ${y}px)`;
+}
+function openDesign() {
+  draft = Object.assign({}, cfg.style);
+  if (!fontsLoaded) { // чтобы в списке шрифтов было видно, как они выглядят
+    fontsLoaded = true;
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = CardStyle.fontUrl(Object.keys(CardStyle.FONTS)); document.head.appendChild(l);
+  }
+  $('design').classList.add('open'); renderDesign();
+  if (!$('dpv').getAttribute('src')) $('dpv').src = new URL('overlay.html?demo=1', location.href).toString();
+  else postDraft(false);
+  fitDesignPreview();
+}
+function closeDesign() {
+  if (draft && !sameStyle(draft, cfg.style) && !confirm('Закрыть без сохранения? Изменения оформления пропадут.')) return;
+  $('design').classList.remove('open'); draft = null;
+}
+window.addEventListener('message', (e) => { if (e.source === $('dpv').contentWindow && e.data && e.data.type === 'demo-ready' && draft) postDraft(false); });
+$('btnDesign').onclick = openDesign; $('btnDesign2').onclick = openDesign;
+$('btnDesignClose').onclick = closeDesign;
+$('design').addEventListener('click', (e) => { if (e.target.id === 'design') closeDesign(); });
+$('btnDesignReset').onclick = () => { draft = CardStyle.normalize({ pos: draft.pos }); renderDesign(); postDraft(); };
+$('btnDesignSave').onclick = async () => {
+  const b = $('btnDesignSave'); b.disabled = true;
+  const ok = await saveStyle(draft); draft = Object.assign({}, cfg.style); updateDesignState();
+  b.textContent = ok ? 'Применено ✓' : 'Сохранено, но оверлей не ответил'; b.disabled = false;
+  setTimeout(() => b.textContent = 'Сохранить и применить', 1800);
+};
+$('btnReplay').onclick = () => postDraft(true);
+$('dKind').querySelectorAll('button').forEach(b => b.onclick = () => {
+  designKind = b.dataset.k; $('dKind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); postDraft(false);
+});
+$('dZoom').querySelectorAll('button').forEach(b => b.onclick = () => {
+  designZoom = b.dataset.z === '1'; $('dZoom').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); fitDesignPreview();
+});
+$('dBg').onchange = () => { $('dPreview').className = 'preview ' + $('dBg').value; };
+window.addEventListener('resize', () => { if (draft) fitDesignPreview(); });
+
 // старт
+// превью «Что видит зритель» живёт в этом же браузере: сразу даём ему сохранённое оформление
+if (cfg.style.v) try { localStorage.setItem('lso_style', JSON.stringify(cfg.style)); } catch (e) {}
 updateLinks(); pollSheet(true); loadRows(); loadTerms();
 </script>
 </body>
