@@ -141,6 +141,36 @@
 | Steam Workshop (платные моды) | https://steamcommunity.com/discussions/forum/0/3801649759597864175 | Цена/доля не найдены (2026-11-03) | доля с продаж (только курируемые игры) | Исторический бойкот платных модов на Workshop (обсуждение Steam) | Открытого механизма для любых игр |
 | Translator++ (инструмент моддинга/перевода через Patreon) | https://graphtreon.com/creator/dreamsavior | Оценка $2K–9K/мес, 1,122 платных (prices_B) (2026-11-03) | подписка Patreon | −30 платных за 30 дней (prices_B) | — |
 
-Флаги: юридический риск — платные моды запрещены у CDPR, Capcom, Giants (DMCA, удаление Patreon); непрозрачно — CurseForge/Nexus пулы; дорого для пользователя — INXANITY $19.99/мес; без русского — все западные платформы; русские фан-моды/русификаторы распространяются через Telegram (сигнал D010 из signals_D) и ломаются после патчей.
+Флаги: юридический риск — платные моды запрещены у CDPR, Capcom, Giants (DMCA, удаление Patreon); непрозрачно — CurseForge/Nexus пулы; дорого для пользователя — INXANITY $19.99/мес; без русского — все западные платформы; русские фан-моды/русификаторы распространяются через Telegram (сигнал D011, signals_D) и ломаются после патчей.
 Дыра: инструмент для моддера «ранний доступ по подписке, публичный релиз по таймеру» + проверка правил игры (разрешает ли издатель paywall) + доставка через TG-бот с автообновлением после патчей — для RU-сцены русификаторов (гипотеза; B026 показывает, что крупные моды по подписке зарабатывают $50k+/мес, но юридический риск реален).
 
+## K20 Утилиты рабочего процесса стримера: профили стрима, раздельная запись, музыка для VOD
+
+| решение | ссылка | цена (дата проверки) | модель оплаты | главные жалобы (со ссылкой, если есть) | чего нет |
+|---|---|---|---|---|---|
+| Twitch Stream Helper (Chrome) — заголовок/категория/теги + пост в X | https://chromewebstore.google.com/detail/fonjapihhkafhmjfdpdcgfoghngldmep | Цена не найдена (выглядит бесплатным); v1.0.3 от 2026-02-06, ~6 пользователей (2026-11-03) | бесплатно | Почти нет пользователей — малоизвестен | Мульти-платформ (Kick/YouTube/VK); именованных профилей «арт / игры» |
+| TwitchControl (OBS-форум, пресеты) | https://obsproject.com/forum/resources/twitchcontrol.464 | Бесплатно (2026-11-03) | бесплатно | Ручная установка, авторизация API (по выдаче) | Простого UI; Kick/YouTube |
+| StreamInfoUpdater (Gumroad) | https://aon1.gumroad.com/l/StreamInfoUpdater | Pro $12 (вторичный, через выдачу; страница почти пустая); free ограничен; требует Streamer.bot (2026-11-03) | разово | Ранний доступ | Работы без Streamer.bot |
+| Casterlabs Multistreamer (Stream Info) | https://docs.casterlabs.co/multistream/stream-info | Цена не найдена (2026-11-03) | — | Не проверено | Профилей-пресетов (только ручная правка в одном месте) |
+| Streamer.bot | https://streamer.bot/ | Бесплатно, Patreon/Ko-fi (2026-11-03) | донаты | «not a plug-and-play solution» (prices_B) — сложная настройка, ниша «настрою за вас» на Fiverr | Готовых пресетов для новичков |
+| Source Record (плагин OBS — раздельная запись) | https://obsproject.com/forum/resources/source-record.1285/ | Бесплатно (донаты); v0.4.8 от 2026-03-26; 915,398 загрузок (2026-11-03) | донаты | 3.62★ из 144, ~26% — 1–2★: не работает с новым NVENC, треск звука, вылеты на macOS Tahoe, дропы кадров; «record two different scenes simultaneously?» (A016, https://www.reddit.com/r/obs/comments/1vzwbez/multiple_full_screen_simultaneous_recording/, 2026-08-27) | Надёжной записи «геймплей + фейскам» отдельными файлами в один клик |
+| Aitum Vertical (OBS) | https://obsproject.com/forum/resources/aitum-vertical.1715/ | Цена не найдена (2026-11-03) | — | Не проверено (есть ветка 1★-отзывов) | — |
+| Soundtrack by Twitch | https://routenote.com/blog/twitch-is-closing-down-soundtrack/ | Закрыт 2023-07-17; API отдаёт 410 Gone (https://discuss.dev.twitch.com/t/withdrawal-of-twitch-api-endpoints-for-soundtrack/46021) (2026-11-03) | — | Закрыт — устаревшее | — |
+| StreamBeats | https://www.streambeats.com/ | «100% Free - No Catch», без аккаунта (2026-11-03) | бесплатно | Платформы (Twitch/YouTube/Kick) на главной не названы, только «DMCA Safe» | Разделения на VOD-дорожку на Kick |
+| Pretzel | https://www.pretzel.rocks/ | Страница пустая без JS — цена не найдена; принадлежит Songtradr (https://rightstech.com/2021/04/songtradr-acquires-pretzel-which-provides-dcma-proof-music-for-twitch-and-youtube/) (2026-11-03) | freemium (не подтверждено) | Не проверено | — |
+| OBS «Twitch VOD Track» (встроено) | https://obsproject.com/forum/threads/twitch-vod-not-muting-audio.187444/ | Бесплатно (2026-11-03) | бесплатно | Не работает, если сервис «Custom» или через Restream (https://ideas.restream.io/new-feature-requests/p/filter-music-from-twitch-vod-when-streaming-with-obs-to-restream); на Kick нет аналога — «save VODs without having the BGM» (A027, https://www.reddit.com/r/Kick/comments/1x6b7r9/is_there_a_way_to_save_vods_without_the/, 2026-10-15) | Отдельной VOD-дорожки на Kick/YouTube/VK; работы через ретрансляторы |
+
+Флаги: всё бесплатное, но разрозненное и сложное (Streamer.bot, TwitchControl, Source Record с багами); устаревшее — Soundtrack by Twitch (закрыт), Source Record (NVENC-несовместимость); только Twitch — почти все инструменты профилей; русского — нет.
+Дыра: «профили стрима в один клик» как TG-бот/мини-апп или расширение: именованные пресеты «название + категория + теги + анонс в TG-канал» для Twitch + Kick + YouTube + VK Видео (A001, 2026-10-30) — бесплатно базово, Stars за мульти-платформу; и локальная запись «без музыки» для Kick-VOD через вторую дорожку (A027) (гипотеза).
+
+## Недоступные источники (2026-11-03)
+
+- 403: giveshare.ru, top.gg (Genshin Wizard), chiaki.site, alternativeto.net/kenmei, quite.com/imposing/price.htm, twitchtracker.com/premium, streamscharts.com/pricing, nexusmods.com/memberships; reddit.com — WebFetch не может открывать (цитаты из signals_*.csv).
+- 404: combot.org/pricing (цены взяты с главной), montax-imposer.com/order.
+- 522: postoplan.app/pricing.
+- DNS не резолвится (вне разрешённых доменов сессии): streamloop.io — цена из prices_B.
+- Без JS не отрисовались цены: kenmei.co/pricing, betterttv.com/dashboard/pro, languagereactor.com/pro, immersivetranslate.com/pricing (суммы), trancy.org/pricing (суммы «0»), pretzel.rocks, aon1.gumroad.com, Google Play HoYoLAB (отзывы).
+
+## Prompt-injection
+
+Явных инструкций для ИИ на проверенных страницах не найдено. Два ложных срабатывания: суммаризатор WebFetch отметил «строку, адресованную ИИ» на quite.com/imposing и «блок с просьбой о формате ответа» на invideo.io/pricing — повторная проверка invideo.io вернула «None»; в обоих случаях это, вероятно, отражение формулировки моего же запроса. Пометка: SullyGnome просит «Please do not scrape this site» (не инструкция ИИ; соблюдено — одна загрузка главной). DiscordChatExporter содержит политический «Terms of use» в README — не инструкция ИИ.
